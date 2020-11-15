@@ -1,0 +1,12 @@
+[package]
+name = "redwood-wiki"
+version = "0.1.0"
+authors = ["Benjamin Richner"]
+edition = "2018"
+license = "GPLv3"
+description = "SQLite-based knowledge base"
+
+[dependencies]
+warp = "0.2.5"
+tokio = { version = "0.2", features = ["macros"] }
+log = "0.4.11"
