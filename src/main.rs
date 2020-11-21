@@ -20,6 +20,19 @@ struct Database {
 	conn: rusqlite::Connection,
 }
 
+impl Database {
+	fn init_tables(&mut self) {
+		self.conn.execute(
+			"CREATE TABLE IF NOT EXISTS person (
+					  id              INTEGER PRIMARY KEY,
+					  name            TEXT NOT NULL,
+					  data            BLOB
+					  )",
+			params![],
+		).unwrap();
+	}
+}
+
 #[tokio::main]
 async fn main() {
 	
@@ -47,29 +60,19 @@ async fn main() {
 	//SQLITE TEST
 	
 	let conn = Connection::open("test.sqlite").unwrap();
+	let mut db = Database {conn};
+	db.init_tables();
 	
-	let db = Arc::new(Mutex::new(Database {conn}));
-    let db = warp::any().map(move || db.clone());
-	
-	/*conn.execute(
-		//"CREATE TABLE person (
-        "CREATE TABLE IF NOT EXISTS person (
-                  id              INTEGER PRIMARY KEY,
-                  name            TEXT NOT NULL,
-                  data            BLOB
-                  )",
-        params![],
-    ).unwrap();
-    let me = Person {
-        id: 0,
-        name: "Steven".to_string(),
-        data: None,
-    };
-    conn.execute(
-        "INSERT INTO person (name, data) VALUES (?1, ?2)",
-        params![me.name, me.data],
-    ).unwrap();
-
+	/*
+	let me = Person {
+		id: 0,
+		name: "Steven".to_string(),
+		data: None,
+	};
+	conn.execute(
+		"INSERT INTO person (name, data) VALUES (?1, ?2)",
+		params![me.name, me.data],
+	).unwrap();
     let mut stmt = conn.prepare("SELECT id, name, data FROM person").unwrap();
     let person_iter = stmt.query_map(params![], |row| {
         Ok(Person {
@@ -85,14 +88,34 @@ async fn main() {
 	
 	//END SQLITE TEST
 	
-	let index_path = warp::path::end();
-    let routes = index_path.and(db).and_then(index_page);
+	let db = Arc::new(Mutex::new(db));
+    let db = warp::any().map(move || db.clone());
+	
+	let index_path = warp::path::end().and(db.clone()).and_then(index_page);
+	let article_path = warp::path("article").and(db.clone()).and(warp::path::param::<u32>()).and_then(article_page);
+    let routes = index_path.or(article_path);
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+}
+
+async fn article_page(db: Arc<Mutex<Database>>, article_number: u32) -> Result<impl warp::Reply, warp::Rejection> {
+    let mut db = db.lock().await;
+    Ok(warp::reply::html(format!(r#"
+<!DOCTYPE html>
+<html>
+<body>
+
+<h2>Redwood Wiki</h2>
+
+<p>Article {}</p>
+
+</body>
+</html>	
+	"#, article_number)))
 }
 
 async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::Rejection> {
     let mut db = db.lock().await;
-	/*.and(warp::get()).map(|| warp::reply::html(r#"
+    Ok(warp::reply::html(r#"
 <!DOCTYPE html>
 <html>
 <body>
@@ -107,6 +130,5 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 
 </body>
 </html>	
-	"#))*/
-    Ok("hello".to_string())
+	"#))
 }
