@@ -195,13 +195,10 @@ async fn article_page(
 				// Code highlighting
 				
 				let mut html = if let CodeBlockKind::Fenced(lang_str) = language {
-					if let Some(syntax) = syntax_set.find_syntax_by_token(&lang_str) {
-						let mut html_generator = ClassedHTMLGenerator::new_with_class_style(&syntax, &syntax_set, ClassStyle::Spaced);
-						html_generator.parse_html_for_line(&code);
-						html_generator.finalize()
-					} else {
-						code.clone()
-					}
+					let syntax = syntax_set.find_syntax_by_token(&lang_str).unwrap_or_else(|| syntax_set.find_syntax_plain_text());
+					let mut html_generator = ClassedHTMLGenerator::new_with_class_style(&syntax, &syntax_set, ClassStyle::Spaced);
+					html_generator.parse_html_for_line(&code);
+					html_generator.finalize()
 				} else {
 					code.clone()
 				};
