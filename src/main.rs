@@ -4,9 +4,9 @@ use chrono;
 
 use rusqlite::{params, Connection, Result};
 
-use pulldown_cmark::{html, Options, Parser, Event, Tag, CowStr, CodeBlockKind};
+use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 
-use syntect::html::{ClassedHTMLGenerator, ClassStyle};
+use syntect::html::{ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::SyntaxSet;
 
 use std::sync::Arc;
@@ -152,74 +152,62 @@ async fn article_page(
 			"".to_string()
 		}
 	};
-	
-	
-	
+
 	let mut css_str = String::new();
 	let ts = syntect::highlighting::ThemeSet::load_defaults();
 	for (key, theme) in ts.themes {
-	  let css = syntect::html::css_for_theme_with_class_style(&theme, syntect::html::ClassStyle::Spaced);
-	  //println!("{}.css - {}", key, css);
-	  css_str = css;
-	  break;
+		let css = syntect::html::css_for_theme_with_class_style(
+			&theme,
+			syntect::html::ClassStyle::Spaced,
+		);
+		//println!("{}.css - {}", key, css);
+		css_str = css;
+		break;
 	}
 
 	// Markdown handling
 	let mut options = Options::empty();
 	options.insert(Options::ENABLE_STRIKETHROUGH);
 	//let parser = Parser::new_ext(&article_text, options);
-	
-	let mut in_code_block = false;
-	let mut code = String::new();
-	
+
 	let syntax_set = SyntaxSet::load_defaults_newlines();
-	
+	let mut html_generator: Option<ClassedHTMLGenerator> = None;
+
 	let parser = Parser::new_ext(&article_text, options).map(|event| {
 		match event {
-			Event::Start(Tag::CodeBlock(_)) => {
-				in_code_block = true;
-				Event::Html(CowStr::Borrowed("<div class='code'>"))
-			},
-			Event::End(Tag::CodeBlock(language)) => {
-				in_code_block = false;
-				
-				/*
-				use syntect::parsing::SyntaxSet;
-				let ss = SyntaxSet::load_defaults_newlines();
-				let syntax = ss.find_syntax_for_file("testdata/highlight_test.erb")
-				.unwrap() // for IO errors, you may want to use try!() or another plain text fallback
-				.unwrap_or_else(|| ss.find_syntax_plain_text());
-				assert_eq!(syntax.name, "HTML (Rails)");
-				*/
-					
-				// Code highlighting
-				
-				let mut html = if let CodeBlockKind::Fenced(lang_str) = language {
-					let syntax = syntax_set.find_syntax_by_token(&lang_str).unwrap_or_else(|| syntax_set.find_syntax_plain_text());
-					let mut html_generator = ClassedHTMLGenerator::new_with_class_style(&syntax, &syntax_set, ClassStyle::Spaced);
-					html_generator.parse_html_for_line(&code);
-					html_generator.finalize()
+			Event::Start(Tag::CodeBlock(language)) => {
+				let mut syntax = if let CodeBlockKind::Fenced(lang_str) = language {
+					syntax_set.find_syntax_by_token(&lang_str)
 				} else {
-					code.clone()
-				};
+					None
+				}
+				.unwrap_or_else(|| syntax_set.find_syntax_plain_text());
 
+				html_generator = Some(ClassedHTMLGenerator::new_with_class_style(
+					&syntax,
+					&syntax_set,
+					ClassStyle::Spaced,
+				));
+				Event::Html(CowStr::Borrowed("<div class='code'>"))
+			}
+			Event::End(Tag::CodeBlock(_)) => {
+				let mut local_html_gen = None;
+				std::mem::swap(&mut local_html_gen, &mut html_generator);
+				let mut html = local_html_gen.unwrap().finalize(); //TODO: If this panics, it's a bug in `pulldown-cmark`
 				html.push_str("</div>");
-
-				code = String::new();
 				Event::Html(CowStr::Boxed(html.into_boxed_str()))
-			},
+			}
 			Event::Text(text) => {
 				println!("Text: {:?}", &text);
 
-				if in_code_block {
-					code += &text.to_string();
+				if let Some(html_generator) = &mut html_generator {
+					html_generator.parse_html_for_line(&text);
 					Event::Text(CowStr::Borrowed(""))
-				}
-				else {
+				} else {
 					Event::Text(text)
 				}
 			}
-			_ => event
+			_ => event,
 		}
 	});
 
