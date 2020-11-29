@@ -4,7 +4,10 @@ use chrono;
 
 use rusqlite::{params, Connection, Result};
 
-use pulldown_cmark::{html, Options, Parser};
+use pulldown_cmark::{html, Options, Parser, Event, Tag, CowStr, CodeBlockKind};
+
+use syntect::html::{ClassedHTMLGenerator, ClassStyle};
+use syntect::parsing::SyntaxSet;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -149,11 +152,79 @@ async fn article_page(
 			"".to_string()
 		}
 	};
+	
+	
+	
+	let mut css_str = String::new();
+	let ts = syntect::highlighting::ThemeSet::load_defaults();
+	for (key, theme) in ts.themes {
+	  let css = syntect::html::css_for_theme_with_class_style(&theme, syntect::html::ClassStyle::Spaced);
+	  //println!("{}.css - {}", key, css);
+	  css_str = css;
+	  break;
+	}
 
 	// Markdown handling
 	let mut options = Options::empty();
 	options.insert(Options::ENABLE_STRIKETHROUGH);
-	let parser = Parser::new_ext(&article_text, options);
+	//let parser = Parser::new_ext(&article_text, options);
+	
+	let mut in_code_block = false;
+	let mut code = String::new();
+	
+	let syntax_set = SyntaxSet::load_defaults_newlines();
+	
+	let parser = Parser::new_ext(&article_text, options).map(|event| {
+		match event {
+			Event::Start(Tag::CodeBlock(_)) => {
+				in_code_block = true;
+				Event::Html(CowStr::Borrowed("<div class='code'>"))
+			},
+			Event::End(Tag::CodeBlock(language)) => {
+				in_code_block = false;
+				
+				/*
+				use syntect::parsing::SyntaxSet;
+				let ss = SyntaxSet::load_defaults_newlines();
+				let syntax = ss.find_syntax_for_file("testdata/highlight_test.erb")
+				.unwrap() // for IO errors, you may want to use try!() or another plain text fallback
+				.unwrap_or_else(|| ss.find_syntax_plain_text());
+				assert_eq!(syntax.name, "HTML (Rails)");
+				*/
+					
+				// Code highlighting
+				
+				let mut html = if let CodeBlockKind::Fenced(lang_str) = language {
+					if let Some(syntax) = syntax_set.find_syntax_by_token(&lang_str) {
+						let mut html_generator = ClassedHTMLGenerator::new_with_class_style(&syntax, &syntax_set, ClassStyle::Spaced);
+						html_generator.parse_html_for_line(&code);
+						html_generator.finalize()
+					} else {
+						code.clone()
+					}
+				} else {
+					code.clone()
+				};
+
+				html.push_str("</div>");
+
+				code = String::new();
+				Event::Html(CowStr::Boxed(html.into_boxed_str()))
+			},
+			Event::Text(text) => {
+				println!("Text: {:?}", &text);
+
+				if in_code_block {
+					code += &text.to_string();
+					Event::Text(CowStr::Borrowed(""))
+				}
+				else {
+					Event::Text(text)
+				}
+			}
+			_ => event
+		}
+	});
 
 	// Write to String buffer.
 	let mut html_output = String::new();
@@ -165,6 +236,10 @@ async fn article_page(
 <html>
 <body>
 
+<style>
+{}
+</style>
+
 <h2>Redwood Wiki</h2>
 
 <p>Article {}</p>
@@ -173,10 +248,12 @@ async fn article_page(
 
 <p>{}</p>
 
+<a href="../../article/1">go to article 1</a>
+
 </body>
 </html>	
 	"#,
-		article_number, html_output
+		css_str, article_number, html_output
 	)))
 }
 
