@@ -168,15 +168,14 @@ async fn article_page(
 	// Markdown handling
 	let mut options = Options::empty();
 	options.insert(Options::ENABLE_STRIKETHROUGH);
-	//let parser = Parser::new_ext(&article_text, options);
 
-	let syntax_set = SyntaxSet::load_defaults_newlines();
+	let syntax_set = SyntaxSet::load_defaults_nonewlines(); // Can't use load_defaults_newlines, see https://github.com/trishume/syntect/issues/318
 	let mut html_generator: Option<ClassedHTMLGenerator> = None;
 
 	let parser = Parser::new_ext(&article_text, options).map(|event| {
 		match event {
 			Event::Start(Tag::CodeBlock(language)) => {
-				let mut syntax = if let CodeBlockKind::Fenced(lang_str) = language {
+				let mut syntax = if let CodeBlockKind::Fenced(lang_str) = &language {
 					syntax_set.find_syntax_by_token(&lang_str)
 				} else {
 					None
@@ -188,20 +187,34 @@ async fn article_page(
 					&syntax_set,
 					ClassStyle::Spaced,
 				));
-				Event::Html(CowStr::Borrowed("<div class='code'>"))
+
+				/*
+				if let CodeBlockKind::Fenced(lang_str) = language {
+					let html_str = format!("<pre><code class='language-{}'>", lang_str);
+					Event::Html(CowStr::Boxed(html_str.into_boxed_str())) //style='white-space: pre;'
+				} else {
+					Event::Html(CowStr::Borrowed("<pre><code>"))
+				}*/
+				Event::Start(Tag::CodeBlock(language))
 			}
 			Event::End(Tag::CodeBlock(_)) => {
 				let mut local_html_gen = None;
 				std::mem::swap(&mut local_html_gen, &mut html_generator);
 				let mut html = local_html_gen.unwrap().finalize(); //TODO: If this panics, it's a bug in `pulldown-cmark`
-				html.push_str("</div>");
+				html.push_str("</code></pre>");
 				Event::Html(CowStr::Boxed(html.into_boxed_str()))
 			}
 			Event::Text(text) => {
 				println!("Text: {:?}", &text);
 
 				if let Some(html_generator) = &mut html_generator {
-					html_generator.parse_html_for_line(&text);
+					// NASTY: Cut out newline... See: https://github.com/trishume/syntect/issues/318
+					// Also: Why is newline in the beginning? Have to research pulldown_cmark for that behaviour...
+					if let Some(text) = text.chars().next().map(|c| &text[c.len_utf8()..]) {
+						html_generator.parse_html_for_line(&text);
+					} else {
+						html_generator.parse_html_for_line(&text);
+					}
 					Event::Text(CowStr::Borrowed(""))
 				} else {
 					Event::Text(text)
@@ -210,6 +223,8 @@ async fn article_page(
 			_ => event,
 		}
 	});
+
+	//let parser = Parser::new_ext(&article_text, options);
 
 	// Write to String buffer.
 	let mut html_output = String::new();
