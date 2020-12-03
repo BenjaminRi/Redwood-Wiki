@@ -210,8 +210,10 @@ async fn article_page(
 				if let Some(html_generator) = &mut html_generator {
 					// NASTY: Cut out newline... See: https://github.com/trishume/syntect/issues/318
 					// Also: Why is newline in the beginning? Have to research pulldown_cmark for that behaviour...
-					if let Some(text) = text.chars().next().map(|c| &text[c.len_utf8()..]) {
-						html_generator.parse_html_for_line(&text);
+					if text.chars().next() == Some('\n') {
+						html_generator.parse_html_for_line(
+							&text.chars().next().map(|c| &text[c.len_utf8()..]).unwrap(),
+						);
 					} else {
 						html_generator.parse_html_for_line(&text);
 					}
