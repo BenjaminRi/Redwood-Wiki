@@ -169,7 +169,7 @@ async fn article_page(
 	let mut options = Options::empty();
 	options.insert(Options::ENABLE_STRIKETHROUGH);
 
-	let syntax_set = SyntaxSet::load_defaults_nonewlines(); // Can't use load_defaults_newlines, see https://github.com/trishume/syntect/issues/318
+	let syntax_set = SyntaxSet::load_defaults_newlines();
 	let mut html_generator: Option<ClassedHTMLGenerator> = None;
 
 	let parser = Parser::new_ext(&article_text, options).map(|event| {
@@ -208,15 +208,7 @@ async fn article_page(
 				println!("Text: {:?}", &text);
 
 				if let Some(html_generator) = &mut html_generator {
-					// NASTY: Cut out newline... See: https://github.com/trishume/syntect/issues/318
-					// Also: Why is newline in the beginning? Have to research pulldown_cmark for that behaviour...
-					if text.chars().next() == Some('\n') {
-						html_generator.parse_html_for_line(
-							&text.chars().next().map(|c| &text[c.len_utf8()..]).unwrap(),
-						);
-					} else {
-						html_generator.parse_html_for_line(&text);
-					}
+					html_generator.parse_html_for_line_which_includes_newline(&text);
 					Event::Text(CowStr::Borrowed(""))
 				} else {
 					Event::Text(text)
