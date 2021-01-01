@@ -3,7 +3,7 @@ name = "redwood-wiki"
 version = "0.1.0"
 authors = ["Benjamin Richner"]
 edition = "2018"
-license = "GPLv3"
+license = "GPL-3.0-only"
 description = "SQLite-based knowledge base"
 
 [dependencies]
