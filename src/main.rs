@@ -93,6 +93,28 @@ impl Database {
 			None
 		}
 	}
+	
+	fn get_article_title(&mut self, id: rowid) -> Option<String> {
+		let mut stmt = self
+			.conn
+			.prepare("SELECT title FROM article WHERE id = ?")
+			.unwrap();
+		let mut article_iter = stmt
+			.query_map(params![id], |row| {
+				Ok(row.get(0)?)
+			})
+			.unwrap();
+
+		if let Some(Ok(title)) = article_iter.next() {
+			Some(title)
+		} else {
+			None
+		}
+	}
+}
+
+fn rowid_from_str(link_str: &str) -> Option<rowid> {
+	link_str.strip_prefix("id:").map_or(None, |id_str| id_str.parse::<rowid>().ok())
 }
 
 #[tokio::main]
@@ -187,20 +209,20 @@ async fn article_page(
 					&syntax_set,
 					ClassStyle::Spaced,
 				));
-
-				/*
-				if let CodeBlockKind::Fenced(lang_str) = language {
-					let html_str = format!("<pre><code class='language-{}'>", lang_str);
-					Event::Html(CowStr::Boxed(html_str.into_boxed_str())) //style='white-space: pre;'
-				} else {
-					Event::Html(CowStr::Borrowed("<pre><code>"))
-				}*/
+				
 				Event::Start(Tag::CodeBlock(language))
+			}
+			Event::Start(Tag::Link(link_type, mut dest_url, title)) => {
+				let url_str : &str = &dest_url;
+				if let Some(id) = rowid_from_str(url_str) {
+					dest_url = CowStr::Boxed(("../../article/".to_owned() + &id.to_string()).into_boxed_str());
+				}
+				Event::Start(Tag::Link(link_type, dest_url, title))
 			}
 			Event::End(Tag::CodeBlock(_)) => {
 				let mut local_html_gen = None;
 				std::mem::swap(&mut local_html_gen, &mut html_generator);
-				let mut html = local_html_gen.unwrap().finalize(); //TODO: If this panics, it's a bug in `pulldown-cmark`
+				let mut html = local_html_gen.unwrap().finalize(); // If this panics, it's a bug in `pulldown-cmark`
 				html.push_str("</code></pre>");
 				Event::Html(CowStr::Boxed(html.into_boxed_str()))
 			}
@@ -208,9 +230,11 @@ async fn article_page(
 				println!("Text: {:?}", &text);
 
 				if let Some(html_generator) = &mut html_generator {
+					// We are in a highlighted code block
 					html_generator.parse_html_for_line_which_includes_newline(&text);
 					Event::Text(CowStr::Borrowed(""))
 				} else {
+					// We are in a regular text element
 					Event::Text(text)
 				}
 			}
@@ -252,7 +276,7 @@ async fn article_page(
 }
 
 async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::Rejection> {
-	let mut db = db.lock().await;
+	let db = db.lock().await;
 	Ok(warp::reply::html(
 		r#"
 <!DOCTYPE html>
