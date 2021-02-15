@@ -312,33 +312,38 @@ async fn article_page(
 	html_output = expand_id_in_text(html_output, &mut db);
 
 	Ok(warp::reply::html(format!(
-		r#"
+r####"
 <!DOCTYPE html>
 <html>
-<body>
-
-<style>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
 {}
 
 {}
-</style>
+		</style>
+	</head>
+	<body>
+		<h2>Redwood Wiki</h2>
 
-<h2>Redwood Wiki</h2>
+		<p>Article {}</p>
 
-<p>Article {}</p>
+		<p>Text:</p>
 
-<p>Text:</p>
+		<p>{}</p>
 
-<p>{}</p>
-
-<a href="../../article/1">go to article 1</a>
-
-</body>
-</html>	
-	"#,
+		<a href="../../article/1">go to article 1</a>
+	</body>
+</html>
+"####,
 		css_str, github_markdown, article_number, html_output
 	)))
 }
+
+//<style type=text/css>body { max-width: 800px; margin: auto; }</style>
 
 async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::Rejection> {
 	let db = db.lock().await;
