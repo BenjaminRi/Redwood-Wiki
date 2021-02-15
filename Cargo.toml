@@ -5,6 +5,9 @@ authors = ["Benjamin Richner"]
 edition = "2018"
 license = "GPL-3.0-only"
 description = "SQLite-based knowledge base"
+keywords = ["wiki", "knowledge-base"]
+categories = ["text-processing", "web-programming"]
+repository = "https://github.com/BenjaminRi/Redwood-Wiki"
 
 [dependencies]
 chrono = "0.4.19"
