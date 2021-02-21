@@ -324,25 +324,35 @@ r####"
 {}
 
 {}
+
+{}
 		</style>
 	</head>
 	<body>
-		<h2>Redwood Wiki</h2>
+		<div class="main-content">
+			<ul class="menu">
+				<li><a href="/" class="menu_other">Home</a></li>
+				<li><a href="blog.php" class="menu_current">Edit</a></li>
+			</ul>
+			
+			<h2>Redwood Wiki</h2>
 
-		<p>Article {}</p>
+			<p>Article {}</p>
 
-		<p>Text:</p>
+			<p>Text:</p>
 
-		<p>{}</p>
+			<p>{}</p>
 
-		<a href="../../article/1">go to article 1</a>
+			<a href="../../article/1">go to article 1</a>
+		</div>
 	</body>
 </html>
 "####,
-		css_str, github_markdown, article_number, html_output
+		css_str, github_markdown, main_css, article_number, html_output
 	)))
 }
 
+//<div contenteditable="true"></div>
 //<style type=text/css>body { max-width: 800px; margin: auto; }</style>
 
 async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::Rejection> {
@@ -366,6 +376,57 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 	"#,
 	))
 }
+
+const main_css: &str = r####"
+.main-content {
+  max-width: 800px;
+  margin: auto;
+}
+
+.menu {
+	list-style-type: none;
+	margin: 0;
+	padding: 0px 0px 0px 0px;
+	border: none
+}
+.menu li {
+	display: inline;
+	border-top-style: none;
+	border-right-style: solid;
+	border-bottom-style: solid;
+	border-left-style: none;
+	border-color: #176AA6;/* COLOUR_THEME */
+	border-width: 2px;
+	padding: 10px 0px 10px 0px;
+	margin-right: 10px;
+}
+
+.menu li a {
+	display: inline-block;
+	padding: 10px 20px 10px 10px;
+	font-size: 2em;
+	font-weight: bold;
+	text-decoration: none;
+}
+
+.menu_current {
+}
+.menu_current:link {
+	color: #176AA6;/* COLOUR_THEME */
+}
+.menu_current:visited {
+	color: #176AA6;/* COLOUR_THEME */
+}
+
+.menu_other {
+}
+.menu_other:link {
+	color: #000000;/* COLOUR_THEME */
+}
+.menu_other:visited {
+	color: #000000;/* COLOUR_THEME */
+}
+"####;
 
 const github_markdown: &str = r####"
 body {
