@@ -212,13 +212,108 @@ async fn main() {
 	let db = Arc::new(Mutex::new(db));
 	let db = warp::any().map(move || db.clone());
 
-	let index_path = warp::path::end().and(db.clone()).and_then(index_page);
+	let index_path = warp::path::end()
+		.and(db.clone())
+		.and_then(index_page);
 	let article_path = warp::path("article")
 		.and(db.clone())
 		.and(warp::path::param::<rowid>())
+		.and(warp::path::end())
 		.and_then(article_page);
-	let routes = index_path.or(article_path);
+	let article_edit_path = warp::path("article")
+		.and(db.clone())
+		.and(warp::path::param::<rowid>())
+		.and(warp::path("edit"))
+		.and(warp::path::end())
+		.and_then(article_edit_page);
+	let routes = index_path.or(article_edit_path).or(article_path);
 	warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+}
+
+async fn article_edit_page(
+	db: Arc<Mutex<Database>>,
+	article_number: rowid,
+) -> Result<impl warp::Reply, warp::Rejection> {
+	let mut db = db.lock().await;
+	
+	if let Some(article) = db.get_article(article_number) {
+		let article_text = article.text;
+		
+		Ok(warp::reply::html(format!(
+r####"
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
+{}
+
+{}
+		</style>
+	</head>
+	<body>
+		<div class="main_content">
+			<ul class="menu">
+				<li><a href="/" class="menu_other">Home</a></li>
+				<li><a href="../../article/{}/edit" class="menu_current">Edit</a></li>
+			</ul>
+			
+			<h2>Redwood Wiki</h2>
+
+			<p>Article {}</p>
+
+			<p>
+				<form action="/action_page.php" method="post">
+					<label for="article_title">Title:</label><input type="text" id="article_title" name="article_title" class="editor_input"><br>
+					<label for="article_text">Text:</label><br>
+					<textarea id="article_text" name="article_text" class="editor_textarea">{}</textarea><br>
+					<input type="submit" class="editor_submit">
+				</form>
+			</p>
+
+			<a href="../../article/1">go to article 1</a>
+		</div>
+	</body>
+</html>
+"####,
+		github_markdown, main_css, article_number, article_number, article_text
+		)))
+	} else {
+		Ok(warp::reply::html(format!(
+r####"
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
+{}
+
+{}
+		</style>
+	</head>
+	<body>
+		<div class="main_content">
+			<ul class="menu">
+				<li><a href="/" class="menu_other">Home</a></li>
+				<li><a href="../../article/{}/edit" class="menu_current">Edit</a></li>
+			</ul>
+			
+			<h2>Redwood Wiki</h2>
+
+			<p>Could not find article with id {}</p>
+		</div>
+	</body>
+</html>
+"####,
+		github_markdown, main_css, article_number, article_number
+		)))
+	}
 }
 
 async fn article_page(
@@ -329,10 +424,10 @@ r####"
 		</style>
 	</head>
 	<body>
-		<div class="main-content">
+		<div class="main_content">
 			<ul class="menu">
 				<li><a href="/" class="menu_other">Home</a></li>
-				<li><a href="blog.php" class="menu_current">Edit</a></li>
+				<li><a href="../../article/{}/edit" class="menu_current">Edit</a></li>
 			</ul>
 			
 			<h2>Redwood Wiki</h2>
@@ -348,7 +443,7 @@ r####"
 	</body>
 </html>
 "####,
-		css_str, github_markdown, main_css, article_number, html_output
+		css_str, github_markdown, main_css, article_number, article_number, html_output
 	)))
 }
 
@@ -378,10 +473,45 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 }
 
 const main_css: &str = r####"
-.main-content {
+.main_content {
   max-width: 800px;
   margin: auto;
 }
+
+.editor_textarea {
+	width: 100%;
+	height: 640px;
+	-webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+	-moz-box-sizing: border-box;    /* Firefox, other Gecko */
+	box-sizing: border-box;         /* Opera/IE 8+ */
+	border: 1px solid #CCCCCC /* #7A7A7A; */
+}
+
+.editor_textarea:focus {
+    outline: none;
+    border: 1px solid #CCCCCC /* #7A7A7A; */
+    box-shadow: none;
+}
+
+.editor_input {
+	width: 100%;
+	-webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+	-moz-box-sizing: border-box;    /* Firefox, other Gecko */
+	box-sizing: border-box;         /* Opera/IE 8+ */
+	border: 1px solid #CCCCCC /* #7A7A7A; */
+}
+
+.editor_input:focus {
+    outline: none;
+    border: 1px solid #CCCCCC /* #7A7A7A; */
+    box-shadow: none;
+}
+
+.editor_submit {
+	width: 100%;
+	height: 40px;
+}
+
 
 .menu {
 	list-style-type: none;
