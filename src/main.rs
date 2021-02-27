@@ -12,6 +12,8 @@ use syntect::parsing::SyntaxSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use rusqlite::ToSql;
+
 use i64 as rowid;
 
 #[derive(Debug)]
@@ -111,6 +113,48 @@ impl Database {
 			None
 		}
 	}
+	
+	fn update_article(&mut self, id: rowid, title: Option<String>, text: Option<String>) {
+		let empty = String::new();
+		//let mut s = String::new();
+		//s.push_str("UPDATE article SET ");
+		
+		let mut arguments: Vec<&dyn ToSql> = vec!();
+		
+		
+		//let value2 = &title.to_sql().unwrap();
+		let value2 = &if let Some(title) = &title {
+			title
+		} else {
+			&empty
+		}.to_sql().unwrap();
+		
+		//let title = title.unwrap();
+		//let value2 = &title.to_sql().unwrap();
+		
+		if let Some(title) = &title {
+			arguments.push(value2);
+		}
+		//arguments.push(value2);
+		
+		let value1 = &id.to_sql().unwrap();
+		arguments.push(value1);
+		
+		
+		//let arguments: Vec<&rusqlite::types::ToSqlOutput<'_>> = vec!(&id.to_sql().unwrap());
+		let foo: &[&dyn rusqlite::ToSql] = &arguments[..];
+		
+		let updated = self.conn.execute(
+			"UPDATE article SET title = ? WHERE id = ?",
+			foo,
+		);
+		
+		if let Ok(updated) = updated {
+			println!("{} rows were updated", updated);
+		} else {
+			println!("failed");
+		}
+	}
 }
 
 fn rowid_from_str(link_str: &str) -> Option<rowid> {
@@ -206,6 +250,8 @@ async fn main() {
 	let mut db = Database { conn };
 	db.init_tables();
 	//db.test_tables();
+	
+	//db.update_article(4, Some("TESTAA".to_string()), None);
 
 	//END SQLITE TEST
 
