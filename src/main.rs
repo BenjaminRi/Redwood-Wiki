@@ -323,7 +323,7 @@ r####"
 	</body>
 </html>
 "####,
-		github_markdown, main_css, article_number, article_number, article_text
+		GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number, article_text
 		)))
 	} else {
 		Ok(warp::reply::html(format!(
@@ -355,7 +355,7 @@ r####"
 	</body>
 </html>
 "####,
-		github_markdown, main_css, article_number, article_number
+		GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number
 		)))
 	}
 }
@@ -487,7 +487,7 @@ r####"
 	</body>
 </html>
 "####,
-		css_str, github_markdown, main_css, article_number, article_number, html_output
+		css_str, GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number, html_output
 	)))
 }
 
@@ -516,7 +516,7 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 	))
 }
 
-const main_css: &str = r####"
+const MAIN_CSS: &str = r####"
 .main_content {
   max-width: 800px;
   margin: auto;
@@ -602,7 +602,7 @@ const main_css: &str = r####"
 }
 "####;
 
-const github_markdown: &str = r####"
+const GITHUB_MARKDOWN: &str = r####"
 body {
   font-family: Helvetica, arial, sans-serif;
   font-size: 14px;
