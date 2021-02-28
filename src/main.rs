@@ -218,6 +218,27 @@ fn expand_id_in_text(text: String, db: &mut Database) -> String {
 	String::from_utf8(str_buf).unwrap() //Note: This should always work, otherwise it's a programmer error
 }
 
+
+// URL scheme: Suppose the wiki root is at `https://www.example.com/`
+// Then article ID 5 could be accessed with
+// `https://www.example.com/article/5/Title-of-fifth-article`
+// The last part of the URL (`Title-of-fifth-article`) is purely cosmetic.
+// The number (`5`) is the unique ID that is relevant for the database lookup.
+// The article URL name is always encoded as `[id]/[title]` where the latter part is cosmetic.
+// So it could also be accessed with
+// `https://www.example.com/article/5`
+// or
+// `https://www.example.com/article/5/Foo`
+// (these "wrong" titles might later trigger a redirect to the URL with the proper titles)
+// Editing articles would be:
+// `https://www.example.com/edit/article/1/Title-of-first-article`
+// Previewing a pending edit would be
+// `https://www.example.com/preview/article/1/Title-of-first-article`
+// The idea is that the URL is always composed of
+// `/[verb]/[item-type]/[item-id]`, except for plain showing articles, which can simply omit the verb.
+// So, `/edit/article/1/Title-of-first-article` but `/article/1/Title-of-first-article` for showing.
+
+
 #[tokio::main]
 async fn main() {
 	fern::Dispatch::new()
