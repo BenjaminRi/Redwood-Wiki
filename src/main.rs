@@ -95,17 +95,13 @@ impl Database {
 			None
 		}
 	}
-	
+
 	fn get_article_title(&mut self, id: rowid) -> Option<String> {
 		let mut stmt = self
 			.conn
 			.prepare("SELECT title FROM article WHERE id = ?")
 			.unwrap();
-		let mut article_iter = stmt
-			.query_map(params![id], |row| {
-				Ok(row.get(0)?)
-			})
-			.unwrap();
+		let mut article_iter = stmt.query_map(params![id], |row| Ok(row.get(0)?)).unwrap();
 
 		if let Some(Ok(title)) = article_iter.next() {
 			Some(title)
@@ -113,19 +109,16 @@ impl Database {
 			None
 		}
 	}
-	
+
 	fn update_article(&mut self, id: rowid, title: Option<String>, text: Option<String>) {
 		let mut query = "UPDATE article SET".to_string();
 
-		let mut arguments: Vec<Box<dyn rusqlite::ToSql>> = vec!();
-		
+		let mut arguments: Vec<Box<dyn rusqlite::ToSql>> = vec![];
+
 		let mut need_delim = false;
 		let delim = ',';
-		
-		for (param, sql_str) in &[
-			(&title, " title = ? "),
-			(&text, " text = ? ")
-			] {
+
+		for (param, sql_str) in &[(&title, " title = ? "), (&text, " text = ? ")] {
 			if let Some(param) = param {
 				// Only update the SQL column if parameter is not None
 				// otherwise let it keep its original value
@@ -138,15 +131,12 @@ impl Database {
 				query.push_str(sql_str);
 			}
 		}
-		
+
 		arguments.push(Box::new(id.to_sql().unwrap()));
 		query.push_str("WHERE id = ?");
-		
-		let updated = self.conn.execute(
-			&query,
-			&arguments[..],
-		);
-		
+
+		let updated = self.conn.execute(&query, &arguments[..]);
+
 		if let Ok(updated) = updated {
 			println!("{} rows were updated", updated);
 		} else {
@@ -156,20 +146,22 @@ impl Database {
 }
 
 fn rowid_from_str(link_str: &str) -> Option<rowid> {
-	link_str.strip_prefix("id:").map_or(None, |id_str| id_str.parse::<rowid>().ok())
+	link_str
+		.strip_prefix("id:")
+		.map_or(None, |id_str| id_str.parse::<rowid>().ok())
 }
 
 fn expand_id_in_text(text: String, db: &mut Database) -> String {
 	enum ParserState {
 		Init,
-		MatchPrefix1, //i
-		MatchPrefix2, //id
+		MatchPrefix1,        //i
+		MatchPrefix2,        //id
 		MatchRowid(Vec<u8>), //id:
 	}
-	
+
 	//Add some additional capacity in case we do actually need to expand some IDs
 	let mut str_buf: Vec<u8> = Vec::with_capacity(text.len() + 256);
-	
+
 	let mut parser_state = ParserState::Init;
 	for ascii_char in text.bytes() {
 		match parser_state {
@@ -201,8 +193,13 @@ fn expand_id_in_text(text: String, db: &mut Database) -> String {
 			ParserState::MatchRowid(mut id_buf) => {
 				if ascii_char < b'0' || ascii_char > b'9' {
 					if let Ok(id) = std::str::from_utf8(&id_buf).unwrap().parse::<rowid>() {
-						let title = db.get_article_title(id).or_else(|| Some("Unknown Article!".to_string())).unwrap();
-						str_buf.extend_from_slice(format!("<a href='../../article/{}'>{}</a>", id, title).as_bytes());
+						let title = db
+							.get_article_title(id)
+							.or_else(|| Some("Unknown Article!".to_string()))
+							.unwrap();
+						str_buf.extend_from_slice(
+							format!("<a href='../../article/{}'>{}</a>", id, title).as_bytes(),
+						);
 					} else {
 						str_buf.extend_from_slice(b"id:");
 						str_buf.extend_from_slice(&id_buf);
@@ -248,7 +245,7 @@ async fn main() {
 	let mut db = Database { conn };
 	db.init_tables();
 	//db.test_tables();
-	
+
 	//db.update_article(4, Some("xA".to_string()), Some("xB".to_string()));
 
 	//END SQLITE TEST
@@ -256,9 +253,7 @@ async fn main() {
 	let db = Arc::new(Mutex::new(db));
 	let db = warp::any().map(move || db.clone());
 
-	let index_path = warp::path::end()
-		.and(db.clone())
-		.and_then(index_page);
+	let index_path = warp::path::end().and(db.clone()).and_then(index_page);
 	let article_path = warp::path("article")
 		.and(db.clone())
 		.and(warp::path::param::<rowid>())
@@ -279,12 +274,12 @@ async fn article_edit_page(
 	article_number: rowid,
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
-	
+
 	if let Some(article) = db.get_article(article_number) {
 		let article_text = article.text;
-		
+
 		Ok(warp::reply::html(format!(
-r####"
+			r####"
 <!DOCTYPE html>
 <html>
 	<head>
@@ -323,11 +318,11 @@ r####"
 	</body>
 </html>
 "####,
-		GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number, article_text
+			GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number, article_text
 		)))
 	} else {
 		Ok(warp::reply::html(format!(
-r####"
+			r####"
 <!DOCTYPE html>
 <html>
 	<head>
@@ -355,7 +350,7 @@ r####"
 	</body>
 </html>
 "####,
-		GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number
+			GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number
 		)))
 	}
 }
@@ -409,13 +404,15 @@ async fn article_page(
 					&syntax_set,
 					ClassStyle::Spaced,
 				));
-				
+
 				Event::Start(Tag::CodeBlock(language))
 			}
 			Event::Start(Tag::Link(link_type, mut dest_url, title)) => {
-				let url_str : &str = &dest_url;
+				let url_str: &str = &dest_url;
 				if let Some(id) = rowid_from_str(url_str) {
-					dest_url = CowStr::Boxed(("../../article/".to_owned() + &id.to_string()).into_boxed_str());
+					dest_url = CowStr::Boxed(
+						("../../article/".to_owned() + &id.to_string()).into_boxed_str(),
+					);
 				}
 				Event::Start(Tag::Link(link_type, dest_url, title))
 			}
@@ -447,11 +444,11 @@ async fn article_page(
 	// Write to String buffer.
 	let mut html_output = String::new();
 	html::push_html(&mut html_output, parser);
-	
+
 	html_output = expand_id_in_text(html_output, &mut db);
 
 	Ok(warp::reply::html(format!(
-r####"
+		r####"
 <!DOCTYPE html>
 <html>
 	<head>
