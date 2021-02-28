@@ -115,23 +115,16 @@ impl Database {
 	}
 	
 	fn update_article(&mut self, id: rowid, title: Option<String>, text: Option<String>) {
-		let empty = String::new();
 		let mut query = "UPDATE article SET".to_string();
 
-		let mut arguments: Vec<&dyn ToSql> = vec!();
+		let mut arguments: Vec<Box<dyn rusqlite::ToSql>> = vec!();
 		
 		let mut need_delim = false;
 		let delim = ',';
 		
-		let value_title = &if let Some(title) = &title {
-			title
-		} else {
-			&empty
-		}.to_sql().unwrap();
-		
 		if let Some(title) = &title {
-			arguments.push(value_title);
-			if(need_delim) {
+			arguments.push(Box::new(title.to_sql().unwrap()));
+			if need_delim {
 				query.push(delim);
 			} else {
 				need_delim = true
@@ -139,15 +132,9 @@ impl Database {
 			query.push_str(" title = ? ");
 		}
 		
-		let value_text = &if let Some(text) = &text {
-			text
-		} else {
-			&empty
-		}.to_sql().unwrap();
-		
 		if let Some(text) = &text {
-			arguments.push(value_text);
-			if(need_delim) {
+			arguments.push(Box::new(text.to_sql().unwrap()));
+			if need_delim {
 				query.push(delim);
 			} else {
 				need_delim = true
@@ -155,18 +142,12 @@ impl Database {
 			query.push_str(" text = ? ");
 		}
 		
-		let value_id = &id.to_sql().unwrap();
-		arguments.push(value_id);
+		arguments.push(Box::new(id.to_sql().unwrap()));
 		query.push_str("WHERE id = ?");
-		
-		let arguments_x: Vec<Box<dyn rusqlite::ToSql>> = vec!(Box::new(value_title),  Box::new(id.to_sql().unwrap()));
-		let arguments_x_slice = &arguments_x[..];
-		
-		let arguments_slice: &[&dyn rusqlite::ToSql] = &arguments[..];
 		
 		let updated = self.conn.execute(
 			&query,
-			arguments_x_slice,
+			&arguments[..],
 		);
 		
 		if let Ok(updated) = updated {
@@ -271,7 +252,7 @@ async fn main() {
 	db.init_tables();
 	//db.test_tables();
 	
-	db.update_article(4, Some("test".to_string()), None);
+	db.update_article(4, Some("sefsef".to_string()), None);
 
 	//END SQLITE TEST
 
