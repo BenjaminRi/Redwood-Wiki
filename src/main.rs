@@ -122,24 +122,21 @@ impl Database {
 		let mut need_delim = false;
 		let delim = ',';
 		
-		if let Some(title) = &title {
-			arguments.push(Box::new(title.to_sql().unwrap()));
-			if need_delim {
-				query.push(delim);
-			} else {
-				need_delim = true
+		for (param, sql_str) in &[
+			(&title, " title = ? "),
+			(&text, " text = ? ")
+			] {
+			if let Some(param) = param {
+				// Only update the SQL column if parameter is not None
+				// otherwise let it keep its original value
+				arguments.push(Box::new(param.to_sql().unwrap()));
+				if need_delim {
+					query.push(delim);
+				} else {
+					need_delim = true
+				}
+				query.push_str(sql_str);
 			}
-			query.push_str(" title = ? ");
-		}
-		
-		if let Some(text) = &text {
-			arguments.push(Box::new(text.to_sql().unwrap()));
-			if need_delim {
-				query.push(delim);
-			} else {
-				need_delim = true
-			}
-			query.push_str(" text = ? ");
 		}
 		
 		arguments.push(Box::new(id.to_sql().unwrap()));
@@ -252,7 +249,7 @@ async fn main() {
 	db.init_tables();
 	//db.test_tables();
 	
-	db.update_article(4, Some("sefsef".to_string()), None);
+	//db.update_article(4, Some("xA".to_string()), Some("xB".to_string()));
 
 	//END SQLITE TEST
 
