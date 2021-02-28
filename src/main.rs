@@ -110,7 +110,7 @@ impl Database {
 		}
 	}
 
-	fn update_article(&mut self, id: rowid, title: Option<String>, text: Option<String>) {
+	fn update_article(&mut self, id: rowid, title: Option<String>, text: Option<String>) -> Result<usize, ()> {
 		let mut query = "UPDATE article SET".to_string();
 
 		let mut arguments: Vec<Box<dyn rusqlite::ToSql>> = vec![];
@@ -138,9 +138,11 @@ impl Database {
 		let updated = self.conn.execute(&query, &arguments[..]);
 
 		if let Ok(updated) = updated {
-			println!("{} rows were updated", updated);
+			//println!("{} rows were updated", updated);
+			Ok(updated)
 		} else {
-			println!("failed");
+			//println!("failed");
+			Err(())
 		}
 	}
 }
