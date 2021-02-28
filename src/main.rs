@@ -159,11 +159,14 @@ impl Database {
 		arguments.push(value_id);
 		query.push_str("WHERE id = ?");
 		
+		let arguments_x: Vec<Box<dyn rusqlite::ToSql>> = vec!(Box::new(value_title),  Box::new(id.to_sql().unwrap()));
+		let arguments_x_slice = &arguments_x[..];
+		
 		let arguments_slice: &[&dyn rusqlite::ToSql] = &arguments[..];
 		
 		let updated = self.conn.execute(
 			&query,
-			arguments_slice,
+			arguments_x_slice,
 		);
 		
 		if let Ok(updated) = updated {
@@ -268,7 +271,7 @@ async fn main() {
 	db.init_tables();
 	//db.test_tables();
 	
-	//db.update_article(4, None, None);
+	db.update_article(4, Some("test".to_string()), None);
 
 	//END SQLITE TEST
 
