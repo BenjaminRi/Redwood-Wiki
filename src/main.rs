@@ -277,18 +277,25 @@ async fn main() {
 	let db = warp::any().map(move || db.clone());
 
 	let index_path = warp::path::end().and(db.clone()).and_then(index_page);
-	let article_path = warp::path("article")
+	let article_path_post = warp::post()
+		.and(warp::path("article"))
 		.and(db.clone())
 		.and(warp::path::param::<rowid>())
 		.and(warp::path::end())
 		.and_then(article_page);
-	let article_edit_path = warp::path("article")
+	let article_path_get = warp::get()
+		.and(warp::path("article"))
 		.and(db.clone())
 		.and(warp::path::param::<rowid>())
-		.and(warp::path("edit"))
+		.and(warp::path::end())
+		.and_then(article_page);
+	let article_edit_path = warp::path("edit")
+		.and(warp::path("article"))
+		.and(db.clone())
+		.and(warp::path::param::<rowid>())
 		.and(warp::path::end())
 		.and_then(article_edit_page);
-	let routes = index_path.or(article_edit_path).or(article_path);
+	let routes = index_path.or(article_edit_path).or(article_path_get).or(article_path_post);
 	warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
 
@@ -328,7 +335,7 @@ async fn article_edit_page(
 			<p>Article {}</p>
 
 			<p>
-				<form action="/action_page.php" method="post">
+				<form action="../../article/{}" method="post">
 					<label for="article_title">Title:</label><input type="text" id="article_title" name="article_title" class="editor_input"><br>
 					<label for="article_text">Text:</label><br>
 					<textarea id="article_text" name="article_text" class="editor_textarea">{}</textarea><br>
@@ -341,7 +348,7 @@ async fn article_edit_page(
 	</body>
 </html>
 "####,
-			GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number, article_text
+			GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number, article_number, article_text
 		)))
 	} else {
 		Ok(warp::reply::html(format!(
@@ -491,7 +498,7 @@ async fn article_page(
 		<div class="main_content">
 			<ul class="menu">
 				<li><a href="/" class="menu_other">Home</a></li>
-				<li><a href="../../article/{}/edit" class="menu_current">Edit</a></li>
+				<li><a href="../../edit/article/{}" class="menu_current">Edit</a></li>
 			</ul>
 			
 			<h2>Redwood Wiki</h2>
