@@ -14,6 +14,8 @@ use tokio::sync::Mutex;
 
 use rusqlite::ToSql;
 
+use std::collections::HashMap;
+
 use i64 as rowid;
 
 #[derive(Debug)]
@@ -282,7 +284,9 @@ async fn main() {
 		.and(db.clone())
 		.and(warp::path::param::<rowid>())
 		.and(warp::path::end())
-		.and_then(article_page);
+		.and(warp::body::form()) //This does not have a default size limit, it would be wise to use one to prevent a overly large request from using too much memory.
+		//.and(warp::body::content_length_limit(1024 * 32))
+		.and_then(article_page_post);
 	let article_path_get = warp::get()
 		.and(warp::path("article"))
 		.and(db.clone())
@@ -383,6 +387,51 @@ async fn article_edit_page(
 			GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number
 		)))
 	}
+}
+
+async fn article_page_post(
+	db: Arc<Mutex<Database>>,
+	article_number: rowid,
+	simple_map: HashMap<String, String>
+) -> Result<impl warp::Reply, warp::Rejection> {
+	Ok(warp::reply::html(format!(
+		r####"
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
+
+{}
+
+{}
+		</style>
+	</head>
+	<body>
+		<div class="main_content">
+			<ul class="menu">
+				<li><a href="/" class="menu_other">Home</a></li>
+				<li><a href="../../edit/article/{}" class="menu_current">Edit</a></li>
+			</ul>
+			
+			<h2>Redwood Wiki</h2>
+
+			<p>Article {}</p>
+
+			<p>Text:</p>
+
+			<p>{:?}</p>
+
+			<a href="../../article/1">go to article 1</a>
+		</div>
+	</body>
+</html>
+"####,
+		GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number, simple_map
+	)))
 }
 
 async fn article_page(
