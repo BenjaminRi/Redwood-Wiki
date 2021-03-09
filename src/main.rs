@@ -112,7 +112,7 @@ impl Database {
 		}
 	}
 
-	fn update_article(&mut self, id: rowid, title: Option<String>, text: Option<String>) -> Result<usize, ()> {
+	fn update_article(&mut self, id: rowid, title: Option<&str>, text: Option<&str>) -> Result<usize, ()> {
 		let mut query = "UPDATE article SET".to_string();
 
 		let mut arguments: Vec<Box<dyn rusqlite::ToSql>> = vec![];
@@ -392,46 +392,15 @@ async fn article_edit_page(
 async fn article_page_post(
 	db: Arc<Mutex<Database>>,
 	article_number: rowid,
-	simple_map: HashMap<String, String>
+	param_map: HashMap<String, String>
 ) -> Result<impl warp::Reply, warp::Rejection> {
-	Ok(warp::reply::html(format!(
-		r####"
-<!DOCTYPE html>
-<html>
-	<head>
-		<meta charset=utf-8>
-		<meta name=viewport content="width=device-width, initial-scale=1.0">
-		<meta name="description" content="">
-		<title>Redwood-wiki</title>
-		<style>
-
-{}
-
-{}
-		</style>
-	</head>
-	<body>
-		<div class="main_content">
-			<ul class="menu">
-				<li><a href="/" class="menu_other">Home</a></li>
-				<li><a href="../../edit/article/{}" class="menu_current">Edit</a></li>
-			</ul>
-			
-			<h2>Redwood Wiki</h2>
-
-			<p>Article {}</p>
-
-			<p>Text:</p>
-
-			<p>{:?}</p>
-
-			<a href="../../article/1">go to article 1</a>
-		</div>
-	</body>
-</html>
-"####,
-		GITHUB_MARKDOWN, MAIN_CSS, article_number, article_number, simple_map
-	)))
+	
+	{
+		let mut db = db.lock().await;
+		//println!("Post request: {:?}", param_map);
+		db.update_article(article_number, param_map.get("article_title").map(|a| -> &str {a}), param_map.get("article_text").map(|a| -> &str {a})); //TODO: Two None parameters here lead to error, handle it
+	}
+	article_page(db, article_number).await
 }
 
 async fn article_page(
