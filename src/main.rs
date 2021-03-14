@@ -328,6 +328,9 @@ async fn article_edit_page(
 		</style>
 	</head>
 	<body>
+		<link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css"> <!-- TODO: Self-host / hardcode this! -->
+		<script src="https://unpkg.com/easymde/dist/easymde.min.js"></script> <!-- TODO: Self-host / hardcode this! -->
+		
 		<div class="main_content">
 			<ul class="menu">
 				<li><a href="/" class="menu_other">Home</a></li>
@@ -346,6 +349,15 @@ async fn article_edit_page(
 					<input type="submit" class="editor_submit">
 				</form>
 			</p>
+			
+			<script>
+			var easyMDE = new EasyMDE({{
+				lineNumbers: true,
+				spellChecker: false,
+				toolbar: false,
+				element: document.getElementById('article_text')
+			}});
+			</script>
 
 			<a href="../../article/1">go to article 1</a>
 		</div>
@@ -565,6 +577,7 @@ const MAIN_CSS: &str = r####"
 .main_content {
   max-width: 800px;
   margin: auto;
+  word-wrap: break-word;
 }
 
 .editor_textarea {
