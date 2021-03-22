@@ -1,7 +1,60 @@
+body {
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	margin: 0;
+	overflow-x: hidden;
+	overflow-y: scroll;
+}
+
 .main_content {
-	max-width: 800px;
+	max-width: 800px; /* MAIN_CONTENT_MAXWIDTH */
 	margin: auto;
 	word-wrap: break-word;
+}
+
+.side_content {
+	width: 200px; /* SIDE_CONTENT_MAXWIDTH */
+	float: left;
+	margin-top: -2px; /* MARGIN_TOP */
+	word-wrap: break-word;
+}
+
+.content {
+	margin: 2px 2px 2px 2px; /* MARGIN_TOP */
+	padding: 30px 30px 30px 30px;
+	word-wrap: break-word;
+	border: 1px solid #eaeaea;
+	background-color: white;
+	border-radius: 3px;
+}
+
+@media screen and (max-width: 1217px) { /* MAIN_CONTENT_MAXWIDTH + 2*SIDE_CONTENT_MAXWIDTH + SCROLLBAR_WIDTH*/ /* Assume SCROLLBAR_WIDTH of 17px */
+	html, body {
+		/* background-color: #EDD9B0; */
+	}	
+
+	.main_content {
+		margin-left: 200px; /* SIDE_CONTENT_MAXWIDTH */
+	}
+}
+
+@media screen and (max-width: 1017px) { /* MAIN_CONTENT_MAXWIDTH + SIDE_CONTENT_MAXWIDTH + SCROLLBAR_WIDTH */ /* Assume SCROLLBAR_WIDTH of 17px */
+	html, body {
+		/* background-color: red; */
+	}
+	
+	.main_content {
+		margin: auto;
+	}
+	
+	.side_content {
+		width: auto;
+		max-width: 800px; /* MAIN_CONTENT_MAXWIDTH */
+		float: none;
+		margin: auto;
+	}
+	
 }
 
 .editor_textarea {
