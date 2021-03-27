@@ -584,9 +584,19 @@ fn generate_menu() -> String {
 	r#"<div class="side_content">
 		<div class="content">
 			{} Redwood wiki
-			<ul>
-				<li><a href="/">Home</a></li>
-			</ul>
+			<p>
+				Navigation:
+				<ul>
+					<li><a href="/">Home</a></li>
+				</ul>
+			</p>
+			<p>
+				Current article:
+				<ul>
+					<li><a href="/">Edit</a></li>
+					<li><a href="/">View source</a></li>
+				</ul>
+			</p>
 		</div>
 	</div>"#, REDWOOD_OBS)
 }
