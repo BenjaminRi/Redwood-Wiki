@@ -316,8 +316,6 @@ async fn article_edit_page(
 	let mut db = db.lock().await;
 
 	if let Some(article) = db.get_article(article_number) {
-		let article_text = article.text;
-
 		Ok(warp::reply::html(format!(
 			r####"
 <!DOCTYPE html>
@@ -349,7 +347,7 @@ async fn article_edit_page(
 
 				<p>
 					<form action="../../article/{}" method="post">
-						<label for="article_title">Title:</label><input type="text" id="article_title" name="article_title" class="editor_input"><br>
+						<label for="article_title">Title:</label><input type="text" id="article_title" name="article_title" class="editor_input" value="{}"><br>
 						<label for="article_text">Text:</label><br>
 						<textarea id="article_text" name="article_text" class="editor_textarea">{}</textarea><br>
 						<input type="submit" class="editor_submit">
@@ -377,7 +375,8 @@ async fn article_edit_page(
 			article_number,
 			article_number,
 			article_number,
-			article_text
+			&article.title,
+			&article.text
 		)))
 	} else {
 		Ok(warp::reply::html(format!(
@@ -539,17 +538,10 @@ async fn article_page(
 		{}
 		<div class="main_content">
 			<div class="content">
-				<ul class="menu">
-					<li><a href="../../edit/article/{}" class="menu_current">Edit</a></li>
-				</ul>
+				<h1>{} <span style="color: #BBBBBB;">#{}</span></h1>
 
-				<p>Article {}</p>
-
-				<p>Text:</p>
-
-				<p>{}</p>
-
-				<a href="../../article/1">go to article 1</a>
+				{}
+				
 			</div>
 		</div>
 	</body>
@@ -559,7 +551,7 @@ async fn article_page(
 			GITHUB_MARKDOWN,
 			MAIN_STYLE,
 			generate_menu(),
-			article_number,
+			&article.title,
 			article_number,
 			html_output
 		)))
