@@ -112,7 +112,12 @@ impl Database {
 		}
 	}
 
-	fn update_article(&mut self, id: rowid, title: Option<&str>, text: Option<&str>) -> Result<usize, ()> {
+	fn update_article(
+		&mut self,
+		id: rowid,
+		title: Option<&str>,
+		text: Option<&str>,
+	) -> Result<usize, ()> {
 		let mut query = "UPDATE article SET".to_string();
 
 		let mut arguments: Vec<Box<dyn rusqlite::ToSql>> = vec![];
@@ -220,7 +225,6 @@ fn expand_id_in_text(text: String, db: &mut Database) -> String {
 	String::from_utf8(str_buf).unwrap() //Note: This should always work, otherwise it's a programmer error
 }
 
-
 // URL scheme: Suppose the wiki root is at `https://www.example.com/`
 // Then article ID 5 could be accessed with
 // `https://www.example.com/article/5/Title-of-fifth-article`
@@ -239,7 +243,6 @@ fn expand_id_in_text(text: String, db: &mut Database) -> String {
 // The idea is that the URL is always composed of
 // `/[verb]/[item-type]/[item-id]`, except for plain showing articles, which can simply omit the verb.
 // So, `/edit/article/1/Title-of-first-article` but `/article/1/Title-of-first-article` for showing.
-
 
 #[tokio::main]
 async fn main() {
@@ -299,7 +302,10 @@ async fn main() {
 		.and(warp::path::param::<rowid>())
 		.and(warp::path::end())
 		.and_then(article_edit_page);
-	let routes = index_path.or(article_edit_path).or(article_path_get).or(article_path_post);
+	let routes = index_path
+		.or(article_edit_path)
+		.or(article_path_get)
+		.or(article_path_post);
 	warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
 
@@ -365,7 +371,13 @@ async fn article_edit_page(
 	</body>
 </html>
 "####,
-			GITHUB_MARKDOWN, MAIN_STYLE, generate_menu(), article_number, article_number, article_number, article_text
+			GITHUB_MARKDOWN,
+			MAIN_STYLE,
+			generate_menu(),
+			article_number,
+			article_number,
+			article_number,
+			article_text
 		)))
 	} else {
 		Ok(warp::reply::html(format!(
@@ -396,7 +408,10 @@ async fn article_edit_page(
 	</body>
 </html>
 "####,
-			GITHUB_MARKDOWN, MAIN_STYLE, generate_menu(), article_number
+			GITHUB_MARKDOWN,
+			MAIN_STYLE,
+			generate_menu(),
+			article_number
 		)))
 	}
 }
@@ -404,13 +419,16 @@ async fn article_edit_page(
 async fn article_page_post(
 	db: Arc<Mutex<Database>>,
 	article_number: rowid,
-	param_map: HashMap<String, String>
+	param_map: HashMap<String, String>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-	
 	{
 		let mut db = db.lock().await;
 		//println!("Post request: {:?}", param_map);
-		db.update_article(article_number, param_map.get("article_title").map(|a| -> &str {a}), param_map.get("article_text").map(|a| -> &str {a})); //TODO: Two None parameters here lead to error, handle it
+		db.update_article(
+			article_number,
+			param_map.get("article_title").map(|a| -> &str { a }),
+			param_map.get("article_text").map(|a| -> &str { a }),
+		); //TODO: Two None parameters here lead to error, handle it
 	}
 	article_page(db, article_number).await
 }
@@ -421,94 +439,87 @@ async fn article_page(
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
 
-	let article_text = {
-		if let Some(article) = db.get_article(article_number) {
-			article.text
-		} else {
-			"".to_string()
+	if let Some(article) = db.get_article(article_number) {
+		let mut css_str = String::new();
+		let ts = syntect::highlighting::ThemeSet::load_defaults();
+		for (key, theme) in ts.themes {
+			let css = syntect::html::css_for_theme_with_class_style(
+				&theme,
+				syntect::html::ClassStyle::Spaced,
+			);
+			//println!("{}.css - {}", key, css);
+			css_str = css;
+			break;
 		}
-	};
 
-	let mut css_str = String::new();
-	let ts = syntect::highlighting::ThemeSet::load_defaults();
-	for (key, theme) in ts.themes {
-		let css = syntect::html::css_for_theme_with_class_style(
-			&theme,
-			syntect::html::ClassStyle::Spaced,
-		);
-		//println!("{}.css - {}", key, css);
-		css_str = css;
-		break;
-	}
+		// Markdown handling
+		let mut options = Options::empty();
+		options.insert(Options::ENABLE_STRIKETHROUGH);
 
-	// Markdown handling
-	let mut options = Options::empty();
-	options.insert(Options::ENABLE_STRIKETHROUGH);
+		let syntax_set = SyntaxSet::load_defaults_newlines();
+		let mut html_generator: Option<ClassedHTMLGenerator> = None;
 
-	let syntax_set = SyntaxSet::load_defaults_newlines();
-	let mut html_generator: Option<ClassedHTMLGenerator> = None;
+		let parser = Parser::new_ext(&article.text, options).map(|event| {
+			//println!("Text: {:?}", &event);
+			match event {
+				Event::Start(Tag::CodeBlock(language)) => {
+					let mut syntax = if let CodeBlockKind::Fenced(lang_str) = &language {
+						syntax_set.find_syntax_by_token(&lang_str)
+					} else {
+						None
+					}
+					.unwrap_or_else(|| syntax_set.find_syntax_plain_text());
 
-	let parser = Parser::new_ext(&article_text, options).map(|event| {
-		//println!("Text: {:?}", &event);
-		match event {
-			Event::Start(Tag::CodeBlock(language)) => {
-				let mut syntax = if let CodeBlockKind::Fenced(lang_str) = &language {
-					syntax_set.find_syntax_by_token(&lang_str)
-				} else {
-					None
+					html_generator = Some(ClassedHTMLGenerator::new_with_class_style(
+						&syntax,
+						&syntax_set,
+						ClassStyle::Spaced,
+					));
+
+					Event::Start(Tag::CodeBlock(language))
 				}
-				.unwrap_or_else(|| syntax_set.find_syntax_plain_text());
-
-				html_generator = Some(ClassedHTMLGenerator::new_with_class_style(
-					&syntax,
-					&syntax_set,
-					ClassStyle::Spaced,
-				));
-
-				Event::Start(Tag::CodeBlock(language))
-			}
-			Event::Start(Tag::Link(link_type, mut dest_url, title)) => {
-				let url_str: &str = &dest_url;
-				if let Some(id) = rowid_from_str(url_str) {
-					dest_url = CowStr::Boxed(
-						("../../article/".to_owned() + &id.to_string()).into_boxed_str(),
-					);
+				Event::Start(Tag::Link(link_type, mut dest_url, title)) => {
+					let url_str: &str = &dest_url;
+					if let Some(id) = rowid_from_str(url_str) {
+						dest_url = CowStr::Boxed(
+							("../../article/".to_owned() + &id.to_string()).into_boxed_str(),
+						);
+					}
+					Event::Start(Tag::Link(link_type, dest_url, title))
 				}
-				Event::Start(Tag::Link(link_type, dest_url, title))
-			}
-			Event::End(Tag::CodeBlock(_)) => {
-				let mut local_html_gen = None;
-				std::mem::swap(&mut local_html_gen, &mut html_generator);
-				let mut html = local_html_gen.unwrap().finalize(); // If this panics, it's a bug in `pulldown-cmark`
-				html.push_str("</code></pre>");
-				Event::Html(CowStr::Boxed(html.into_boxed_str()))
-			}
-			Event::Text(text) => {
-				//println!("Text: {:?}", &text);
-
-				if let Some(html_generator) = &mut html_generator {
-					// We are in a highlighted code block
-					html_generator.parse_html_for_line_which_includes_newline(&text);
-					Event::Text(CowStr::Borrowed(""))
-				} else {
-					// We are in a regular text element
-					Event::Text(text)
+				Event::End(Tag::CodeBlock(_)) => {
+					let mut local_html_gen = None;
+					std::mem::swap(&mut local_html_gen, &mut html_generator);
+					let mut html = local_html_gen.unwrap().finalize(); // If this panics, it's a bug in `pulldown-cmark`
+					html.push_str("</code></pre>");
+					Event::Html(CowStr::Boxed(html.into_boxed_str()))
 				}
+				Event::Text(text) => {
+					//println!("Text: {:?}", &text);
+
+					if let Some(html_generator) = &mut html_generator {
+						// We are in a highlighted code block
+						html_generator.parse_html_for_line_which_includes_newline(&text);
+						Event::Text(CowStr::Borrowed(""))
+					} else {
+						// We are in a regular text element
+						Event::Text(text)
+					}
+				}
+				_ => event,
 			}
-			_ => event,
-		}
-	});
+		});
 
-	//let parser = Parser::new_ext(&article_text, options);
+		//let parser = Parser::new_ext(&article.text, options);
 
-	// Write to String buffer.
-	let mut html_output = String::new();
-	html::push_html(&mut html_output, parser);
+		// Write to String buffer.
+		let mut html_output = String::new();
+		html::push_html(&mut html_output, parser);
 
-	html_output = expand_id_in_text(html_output, &mut db);
+		html_output = expand_id_in_text(html_output, &mut db);
 
-	Ok(warp::reply::html(format!(
-		r####"
+		Ok(warp::reply::html(format!(
+			r####"
 <!DOCTYPE html>
 <html>
 	<head>
@@ -544,8 +555,46 @@ async fn article_page(
 	</body>
 </html>
 "####,
-		css_str, GITHUB_MARKDOWN, MAIN_STYLE, generate_menu(), article_number, article_number, html_output
-	)))
+			css_str,
+			GITHUB_MARKDOWN,
+			MAIN_STYLE,
+			generate_menu(),
+			article_number,
+			article_number,
+			html_output
+		)))
+	} else {
+		Ok(warp::reply::html(format!(
+			r####"
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
+{}
+
+{}
+		</style>
+	</head>
+	<body>
+		{}
+		<div class="main_content">
+			<div class="content">
+				<p>Could not find article #{}!</p>
+			</div>
+		</div>
+	</body>
+</html>
+"####,
+			GITHUB_MARKDOWN,
+			MAIN_STYLE,
+			generate_menu(),
+			article_number
+		)))
+	}
 }
 
 //<div contenteditable="true"></div>
@@ -575,13 +624,15 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 		</div>
 	</body>
 </html>
-	"#, MAIN_STYLE, generate_menu()
+	"#,
+		MAIN_STYLE,
+		generate_menu()
 	)))
 }
 
 fn generate_menu() -> String {
 	format!(
-	r#"<div class="side_content">
+		r#"<div class="side_content">
 		<div class="content">
 			{} Redwood wiki
 			<p>
@@ -598,7 +649,9 @@ fn generate_menu() -> String {
 				</ul>
 			</p>
 		</div>
-	</div>"#, REDWOOD_OBS)
+	</div>"#,
+		REDWOOD_OBS
+	)
 }
 
 const MAIN_STYLE: &str = include_str!("css/main_style.css");
