@@ -371,7 +371,7 @@ async fn article_edit_page(
 "####,
 			GITHUB_MARKDOWN,
 			MAIN_STYLE,
-			generate_menu(),
+			generate_menu(Some(article_number)),
 			article_number,
 			article_number,
 			article_number,
@@ -409,7 +409,7 @@ async fn article_edit_page(
 "####,
 			GITHUB_MARKDOWN,
 			MAIN_STYLE,
-			generate_menu(),
+			generate_menu(Some(article_number)),
 			article_number
 		)))
 	}
@@ -550,7 +550,7 @@ async fn article_page(
 			css_str,
 			GITHUB_MARKDOWN,
 			MAIN_STYLE,
-			generate_menu(),
+			generate_menu(Some(article_number)),
 			&article.title,
 			article_number,
 			html_output
@@ -583,7 +583,7 @@ async fn article_page(
 "####,
 			GITHUB_MARKDOWN,
 			MAIN_STYLE,
-			generate_menu(),
+			generate_menu(Some(article_number)),
 			article_number
 		)))
 	}
@@ -618,32 +618,49 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 </html>
 	"#,
 		MAIN_STYLE,
-		generate_menu()
+		generate_menu(None)
 	)))
 }
 
-fn generate_menu() -> String {
-	format!(
-		r#"<div class="side_content">
-		<div class="content">
-			{} Redwood wiki
-			<p>
-				Navigation:
-				<ul>
-					<li><a href="/">Home</a></li>
-				</ul>
-			</p>
-			<p>
-				Current article:
-				<ul>
-					<li><a href="/">Edit</a></li>
-					<li><a href="/">View source</a></li>
-				</ul>
-			</p>
-		</div>
-	</div>"#,
-		REDWOOD_OBS
-	)
+fn generate_menu(article_number_opt: Option<rowid>) -> String {
+	if let Some(article_number) = article_number_opt {
+		format!(
+			r#"<div class="side_content">
+			<div class="content">
+				{} Redwood wiki
+				<p>
+					Navigation:
+					<ul>
+						<li><a href="/">Home</a></li>
+					</ul>
+				</p>
+				<p>
+					Current article:
+					<ul>
+						<li><a href="/edit/article/{}">Edit</a></li>
+					</ul>
+				</p>
+			</div>
+		</div>"#,
+			REDWOOD_OBS,
+			article_number
+		)
+	} else {
+		format!(
+			r#"<div class="side_content">
+			<div class="content">
+				{} Redwood wiki
+				<p>
+					Navigation:
+					<ul>
+						<li><a href="/">Home</a></li>
+					</ul>
+				</p>
+			</div>
+		</div>"#,
+			REDWOOD_OBS
+		)
+	}
 }
 
 const MAIN_STYLE: &str = include_str!("css/main_style.css");
