@@ -350,7 +350,7 @@ async fn article_edit_page(
 						<label for="article_title">Title:</label><input type="text" id="article_title" name="article_title" class="editor_input" value="{}"><br>
 						<label for="article_text">Text:</label><br>
 						<textarea id="article_text" name="article_text" class="editor_textarea">{}</textarea><br>
-						<input type="submit" class="editor_submit">
+						<input type="submit" class="editor_submit" value="Save">
 					</form>
 				</p>
 				
