@@ -362,8 +362,6 @@ async fn article_edit_page(
 					element: document.getElementById('article_text')
 				}});
 				</script>
-
-				<a href="../../article/1">go to article 1</a>
 			</div>
 		</div>
 	</body>
