@@ -37,7 +37,7 @@ impl Database {
 			.execute(
 				"CREATE TABLE IF NOT EXISTS article (
 					id     INTEGER PRIMARY KEY AUTOINCREMENT,
-					title  TEXT NOT NULL,
+					title  TEXT NOT NULL UNIQUE,
 					text   TEXT NOT NULL
 				)",
 				params![],
@@ -142,14 +142,15 @@ impl Database {
 		arguments.push(Box::new(id.to_sql().unwrap()));
 		query.push_str("WHERE id = ?");
 
-		let updated = self.conn.execute(&query, &arguments[..]);
-
-		if let Ok(updated) = updated {
-			//println!("{} rows were updated", updated);
-			Ok(updated)
-		} else {
-			//println!("failed");
-			Err(())
+		match self.conn.execute(&query, &arguments[..]) {
+			Ok(updated) => {
+				println!("{} rows were updated", updated);
+				Ok(updated)
+			},
+			Err(err) => {
+				println!("update failed: {:?}", err);
+				Err(())
+			},
 		}
 	}
 }
@@ -618,6 +619,7 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 		MAIN_STYLE,
 		generate_menu(None)
 	)))
+	//Ok(warp::redirect(warp::http::Uri::from_static("https://www.google.com")))
 }
 
 fn generate_menu(article_number_opt: Option<rowid>) -> String {
