@@ -1,6 +1,7 @@
 use warp::Filter;
 
 use chrono;
+use chrono::Utc;
 
 use rusqlite::{params, Connection, Result};
 
@@ -13,6 +14,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use rusqlite::ToSql;
+use rusqlite::types::FromSql;
 
 use std::collections::HashMap;
 
@@ -23,6 +25,8 @@ struct Article {
 	id: rowid,
 	title: String,
 	text: String,
+	date_created: chrono::NaiveDateTime,
+	date_modified: chrono::NaiveDateTime,
 }
 
 //https://blog.joco.dev/posts/warp_auth_server_tutorial
@@ -35,10 +39,14 @@ impl Database {
 	fn init_tables(&mut self) {
 		self.conn
 			.execute(
+				// Note: SQLite does not have a DATETIME type
+				// Therefore, these types are TEXT with ISO 8601 format
 				"CREATE TABLE IF NOT EXISTS article (
-					id     INTEGER PRIMARY KEY AUTOINCREMENT,
-					title  TEXT NOT NULL UNIQUE,
-					text   TEXT NOT NULL
+					id            INTEGER PRIMARY KEY AUTOINCREMENT,
+					title         TEXT NOT NULL UNIQUE,
+					text          TEXT NOT NULL,
+					date_created  DATETIME NOT NULL,
+					date_modified DATETIME NOT NULL
 				)",
 				params![],
 			)
@@ -50,6 +58,8 @@ impl Database {
 			id: 0,
 			title: "TITLE_x".to_string(),
 			text: "TEXT_x".to_string(),
+			date_created: Utc::now().naive_utc(),
+			date_modified: Utc::now().naive_utc(),
 		};
 		self.conn
 			.execute(
@@ -59,7 +69,7 @@ impl Database {
 			.unwrap();
 		let mut stmt = self
 			.conn
-			.prepare("SELECT id, title, text FROM article")
+			.prepare("SELECT id, title, text, date_created, date_modified FROM article")
 			.unwrap();
 		let article_iter = stmt
 			.query_map(params![], |row| {
@@ -67,6 +77,8 @@ impl Database {
 					id: row.get(0)?,
 					title: row.get(1)?,
 					text: row.get(2)?,
+					date_created: row.get(3)?,
+					date_modified: row.get(4)?,
 				})
 			})
 			.unwrap();
@@ -79,7 +91,7 @@ impl Database {
 	fn get_article(&mut self, id: rowid) -> Option<Article> {
 		let mut stmt = self
 			.conn
-			.prepare("SELECT id, title, text FROM article WHERE id = ?")
+			.prepare("SELECT id, title, text, date_created, date_modified FROM article WHERE id = ?")
 			.unwrap();
 		let mut article_iter = stmt
 			.query_map(params![id], |row| {
@@ -87,12 +99,22 @@ impl Database {
 					id: row.get(0)?,
 					title: row.get(1)?,
 					text: row.get(2)?,
+					date_created: row.get(3)?,
+					date_modified: row.get(4)?,
 				})
 			})
 			.unwrap();
-
-		if let Some(Ok(article)) = article_iter.next() {
-			Some(article)
+		
+		if let Some(article_result) = article_iter.next() {
+			match article_result {
+				Ok(article) => {
+					Some(article)
+				},
+				Err(err) => {
+					println!("lookup failed: {:?}", err);
+					None
+				},
+			}
 		} else {
 			None
 		}
