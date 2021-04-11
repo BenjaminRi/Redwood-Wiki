@@ -338,7 +338,7 @@ async fn article_edit_page(
 		
 		{}
 		<div class="main_content">
-			<div class="content">
+			<div class="content markdown">
 				<ul class="menu">
 					<li><a href="../../preview/article/{}" class="menu_current">Preview</a></li>
 				</ul>
@@ -397,7 +397,7 @@ async fn article_edit_page(
 	<body>
 		{}
 		<div class="main_content">
-			<div class="content">
+			<div class="content markdown">
 				<ul class="menu">
 				</ul>
 
@@ -537,7 +537,7 @@ async fn article_page(
 	<body>
 		{}
 		<div class="main_content">
-			<div class="content">
+			<div class="content markdown">
 				<h1>{} <span style="color: #BBBBBB;">#{}</span></h1>
 
 				{}
@@ -574,7 +574,7 @@ async fn article_page(
 	<body>
 		{}
 		<div class="main_content">
-			<div class="content">
+			<div class="content markdown">
 				<p>Could not find article #{}!</p>
 			</div>
 		</div>
@@ -610,7 +610,7 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 	<body>
 		{}
 		<div class="main_content">
-			<div class="content">
+			<div class="content markdown">
 				<h2 style="margin-top: 0px;">Redwood Wiki</h2>
 			</div>
 		</div>

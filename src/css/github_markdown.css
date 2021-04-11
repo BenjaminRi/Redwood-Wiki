@@ -1,18 +1,18 @@
-body {
+.markdown {
 	font-family: Helvetica, arial, sans-serif;
 	font-size: 14px;
 	line-height: 1.6;
 }
 
-a {
+.markdown a {
 	color: #4183C4;
 }
 
-a.absent {
+.markdown a.absent {
 	color: #cc0000;
 }
 
-a.anchor {
+.markdown a.anchor {
 	display: block;
 	padding-left: 30px;
 	margin-left: -30px;
@@ -23,7 +23,7 @@ a.anchor {
 	bottom: 0;
 }
 
-h1,
+.markdown h1,
 h2,
 h3,
 h4,
@@ -37,66 +37,66 @@ h6 {
 	position: relative;
 }
 
-h1 tt,
+.markdown h1 tt,
 h1 code {
 	font-size: inherit;
 }
 
-h2 tt,
+.markdown h2 tt,
 h2 code {
 	font-size: inherit;
 }
 
-h3 tt,
+.markdown h3 tt,
 h3 code {
 	font-size: inherit;
 }
 
-h4 tt,
+.markdown h4 tt,
 h4 code {
 	font-size: inherit;
 }
 
-h5 tt,
+.markdown h5 tt,
 h5 code {
 	font-size: inherit;
 }
 
-h6 tt,
+.markdown h6 tt,
 h6 code {
 	font-size: inherit;
 }
 
-h1 {
+.markdown h1 {
 	font-size: 28px;
 	border-bottom: 1px solid #cccccc;
 	color: black;
 }
 
-h2 {
+.markdown h2 {
 	font-size: 24px;
 	border-bottom: 1px solid #cccccc;
 	color: black;
 }
 
-h3 {
+.markdown h3 {
 	font-size: 18px;
 }
 
-h4 {
+.markdown h4 {
 	font-size: 16px;
 }
 
-h5 {
+.markdown h5 {
 	font-size: 14px;
 }
 
-h6 {
+.markdown h6 {
 	color: #777777;
 	font-size: 14px;
 }
 
-p,
+.markdown p,
 blockquote,
 ul,
 ol,
@@ -107,7 +107,7 @@ pre {
 	margin: 15px 0;
 }
 
-hr {
+.markdown hr {
 	border-left: none;
 	border-right: none;
 	border-top: none;
@@ -115,7 +115,7 @@ hr {
 	padding: 0;
 }
 
-a:first-child h1,
+.markdown a:first-child h1,
 a:first-child h2,
 a:first-child h3,
 a:first-child h4,
@@ -125,7 +125,7 @@ a:first-child h6 {
 	padding-top: 0;
 }
 
-h1 p,
+.markdown h1 p,
 h2 p,
 h3 p,
 h4 p,
@@ -134,30 +134,30 @@ h6 p {
 	margin-top: 0;
 }
 
-li p.first {
+.markdown li p.first {
 	display: inline-block;
 }
 
-ul,
+.markdown ul,
 ol {
 	padding-left: 30px;
 }
 
-ul :first-child,
+.markdown ul :first-child,
 ol :first-child {
 	margin-top: 0;
 }
 
-ul :last-child,
+.markdown ul :last-child,
 ol :last-child {
 	margin-bottom: 0;
 }
 
-dl {
+.markdown dl {
 	padding: 0;
 }
 
-dl dt {
+.markdown dl dt {
 	font-size: 14px;
 	font-weight: bold;
 	font-style: italic;
@@ -165,61 +165,61 @@ dl dt {
 	margin: 15px 0 5px;
 }
 
-dl dt:first-child {
+.markdown dl dt:first-child {
 	padding: 0;
 }
 
-dl dt > :first-child {
+.markdown dl dt > :first-child {
 	margin-top: 0;
 }
 
-dl dt > :last-child {
+.markdown dl dt > :last-child {
 	margin-bottom: 0;
 }
 
-dl dd {
+.markdown dl dd {
 	margin: 0 0 15px;
 	padding: 0 15px;
 }
 
-dl dd > :first-child {
+.markdown dl dd > :first-child {
 	margin-top: 0;
 }
 
-dl dd > :last-child {
+.markdown dl dd > :last-child {
 	margin-bottom: 0;
 }
 
-blockquote {
+.markdown blockquote {
 	border-left: 4px solid #dddddd;
 	padding: 0 15px;
 	color: #777777;
 }
 
-blockquote > :first-child {
+.markdown blockquote > :first-child {
 	margin-top: 0;
 }
 
-blockquote > :last-child {
+.markdown blockquote > :last-child {
 	margin-bottom: 0;
 }
 
-table {
+.markdown table {
 	padding: 0;
 }
 
-table tr {
+.markdown table tr {
 	border-top: 1px solid #cccccc;
 	background-color: white;
 	margin: 0;
 	padding: 0;
 }
 
-table tr:nth-child(2n) {
+.markdown table tr:nth-child(2n) {
 	background-color: #f8f8f8;
 }
 
-table tr th {
+.markdown table tr th {
 	font-weight: bold;
 	border: 1px solid #cccccc;
 	text-align: left;
@@ -227,33 +227,33 @@ table tr th {
 	padding: 6px 13px;
 }
 
-table tr td {
+.markdown table tr td {
 	border: 1px solid #cccccc;
 	text-align: left;
 	margin: 0;
 	padding: 6px 13px;
 }
 
-table tr th :first-child,
+.markdown table tr th :first-child,
 table tr td :first-child {
 	margin-top: 0;
 }
 
-table tr th :last-child,
+.markdown table tr th :last-child,
 table tr td :last-child {
 	margin-bottom: 0;
 }
 
-img {
+.markdown img {
 	max-width: 100%;
 }
 
-span.frame {
+.markdown span.frame {
 	display: block;
 	overflow: hidden;
 }
 
-span.frame > span {
+.markdown span.frame > span {
 	border: 1px solid #dddddd;
 	display: block;
 	float: left;
@@ -263,80 +263,80 @@ span.frame > span {
 	width: auto;
 }
 
-span.frame span img {
+.markdown span.frame span img {
 	display: block;
 	float: left;
 }
 
-span.frame span span {
+.markdown span.frame span span {
 	clear: both;
 	color: #333333;
 	display: block;
 	padding: 5px 0 0;
 }
 
-span.align-center {
+.markdown span.align-center {
 	display: block;
 	overflow: hidden;
 	clear: both;
 }
 
-span.align-center > span {
+.markdown span.align-center > span {
 	display: block;
 	overflow: hidden;
 	margin: 13px auto 0;
 	text-align: center;
 }
 
-span.align-center span img {
+.markdown span.align-center span img {
 	margin: 0 auto;
 	text-align: center;
 }
 
-span.align-right {
+.markdown span.align-right {
 	display: block;
 	overflow: hidden;
 	clear: both;
 }
 
-span.align-right > span {
+.markdown span.align-right > span {
 	display: block;
 	overflow: hidden;
 	margin: 13px 0 0;
 	text-align: right;
 }
 
-span.align-right span img {
+.markdown span.align-right span img {
 	margin: 0;
 	text-align: right;
 }
 
-span.float-left {
+.markdown span.float-left {
 	display: block;
 	margin-right: 13px;
 	overflow: hidden;
 	float: left;
 }
 
-span.float-left span {
+.markdown span.float-left span {
 	margin: 13px 0 0;
 }
 
-span.float-right {
+.markdown span.float-right {
 	display: block;
 	margin-left: 13px;
 	overflow: hidden;
 	float: right;
 }
 
-span.float-right > span {
+.markdown span.float-right > span {
 	display: block;
 	overflow: hidden;
 	margin: 13px auto 0;
 	text-align: right;
 }
 
-code,
+.markdown code,
 tt {
 	margin: 0 2px;
 	padding: 0 5px;
@@ -346,7 +346,7 @@ tt {
 	border-radius: 3px;
 }
 
-pre code {
+.markdown pre code {
 	margin: 0;
 	padding: 0;
 	white-space: pre;
@@ -354,7 +354,7 @@ pre code {
 	background: transparent;
 }
 
-.highlight pre {
+.markdown .highlight pre {
 	background-color: #f8f8f8;
 	border: 1px solid #cccccc;
 	font-size: 13px;
@@ -364,7 +364,7 @@ pre code {
 	border-radius: 3px;
 }
 
-pre {
+.markdown pre {
 	background-color: #f8f8f8;
 	border: 1px solid #cccccc;
 	font-size: 13px;
@@ -374,7 +374,7 @@ pre {
 	border-radius: 3px;
 }
 
-pre code,
+.markdown pre code,
 pre tt {
 	background-color: transparent;
 	border: none;
