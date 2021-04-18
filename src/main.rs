@@ -15,8 +15,8 @@ use warp::Reply;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use rusqlite::ToSql;
 use rusqlite::types::FromSql;
+use rusqlite::ToSql;
 
 use std::collections::HashMap;
 
@@ -54,7 +54,7 @@ impl Database {
 			)
 			.unwrap();
 	}
-	
+
 	fn create_article(&mut self, article: &Article) -> Option<rowid> {
 		let now = Utc::now().naive_utc();
 		if let Ok(1) = self.conn
@@ -106,7 +106,9 @@ impl Database {
 	fn get_article(&mut self, id: rowid) -> Option<Article> {
 		let mut stmt = self
 			.conn
-			.prepare("SELECT id, title, text, date_created, date_modified FROM article WHERE id = ?")
+			.prepare(
+				"SELECT id, title, text, date_created, date_modified FROM article WHERE id = ?",
+			)
 			.unwrap();
 		let mut article_iter = stmt
 			.query_map(params![id], |row| {
@@ -119,16 +121,14 @@ impl Database {
 				})
 			})
 			.unwrap();
-		
+
 		if let Some(article_result) = article_iter.next() {
 			match article_result {
-				Ok(article) => {
-					Some(article)
-				},
+				Ok(article) => Some(article),
 				Err(err) => {
 					println!("lookup failed: {:?}", err);
 					None
-				},
+				}
 			}
 		} else {
 			None
@@ -183,11 +183,11 @@ impl Database {
 			Ok(updated) => {
 				println!("{} rows were updated", updated);
 				Ok(updated)
-			},
+			}
 			Err(err) => {
 				println!("update failed: {:?}", err);
 				Err(())
-			},
+			}
 		}
 	}
 }
@@ -568,7 +568,7 @@ async fn article_page(
 		html::push_html(&mut html_output, parser);
 
 		html_output = expand_id_in_text(html_output, &mut db);
-		
+
 		if html_output == "" {
 			html_output = format!("[This article is empty. Click <a href='../../edit/article/{}'>here</a> to edit it.]", article.id);
 		}
@@ -678,13 +678,12 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 	)))
 }
 
-
 async fn article_create_page_post(
 	db: Arc<Mutex<Database>>,
 	param_map: HashMap<String, String>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
-	
+
 	let art = Article {
 		id: 0,
 		title: param_map.get("article_title").unwrap().to_string(), //TODO: Dangerous unwrap here, can crash server!
@@ -692,13 +691,16 @@ async fn article_create_page_post(
 		date_created: Utc::now().naive_utc(),
 		date_modified: Utc::now().naive_utc(),
 	};
-	
+
 	let create_result = db.create_article(&art);
 	if let Some(id) = create_result {
-		Ok(warp::redirect(warp::http::Uri::from_maybe_shared(format!("/article/{}", id)).unwrap()).into_response())
+		Ok(
+			warp::redirect(warp::http::Uri::from_maybe_shared(format!("/article/{}", id)).unwrap())
+				.into_response(),
+		)
 	} else {
 		Ok(warp::reply::html(format!(
-		r####"
+			r####"
 <!DOCTYPE html>
 <html>
 	<head>
@@ -724,10 +726,10 @@ async fn article_create_page_post(
 "####,
 			MAIN_STYLE,
 			generate_menu(None)
-		)).into_response())
+		))
+		.into_response())
 	}
 }
-
 
 async fn article_create_page(
 	db: Arc<Mutex<Database>>,
@@ -793,8 +795,7 @@ fn generate_menu(article_number_opt: Option<rowid>) -> String {
 				</p>
 			</div>
 		</div>"#,
-			REDWOOD_OBS,
-			article_number
+			REDWOOD_OBS, article_number
 		)
 	} else {
 		format!(
