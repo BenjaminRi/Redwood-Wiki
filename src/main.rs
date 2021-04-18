@@ -10,6 +10,8 @@ use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 use syntect::html::{ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::SyntaxSet;
 
+use warp::Reply;
+
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -51,6 +53,19 @@ impl Database {
 				params![],
 			)
 			.unwrap();
+	}
+	
+	fn create_article(&mut self, article: &Article) -> Option<rowid> {
+		let now = Utc::now().naive_utc();
+		if let Ok(1) = self.conn
+			.execute(
+				"INSERT INTO article (title, text, date_created, date_modified) VALUES (?1, ?2, ?3, ?4)",
+				params![article.title, article.text, now, now],
+			) {
+			Some(self.conn.last_insert_rowid())
+		} else {
+			None
+		}
 	}
 
 	fn test_tables(&mut self) {
@@ -325,10 +340,26 @@ async fn main() {
 		.and(warp::path::param::<rowid>())
 		.and(warp::path::end())
 		.and_then(article_edit_page);
+	let article_create_get_path = warp::get()
+		.and(warp::path("create"))
+		.and(warp::path("article"))
+		.and(db.clone())
+		.and(warp::path::end())
+		.and_then(article_create_page);
+	let article_create_post_path = warp::post()
+		.and(warp::path("create"))
+		.and(warp::path("article"))
+		.and(db.clone())
+		.and(warp::path::end())
+		.and(warp::body::form()) //This does not have a default size limit, it would be wise to use one to prevent a overly large request from using too much memory.
+		//.and(warp::body::content_length_limit(1024 * 32))
+		.and_then(article_create_page_post);
 	let routes = index_path
 		.or(article_edit_path)
 		.or(article_path_get)
-		.or(article_path_post);
+		.or(article_path_post)
+		.or(article_create_get_path)
+		.or(article_create_post_path);
 	warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
 
@@ -537,6 +568,10 @@ async fn article_page(
 		html::push_html(&mut html_output, parser);
 
 		html_output = expand_id_in_text(html_output, &mut db);
+		
+		if html_output == "" {
+			html_output = format!("[This article is empty. Click <a href='../../edit/article/{}'>here</a> to edit it.]", article.id);
+		}
 
 		Ok(warp::reply::html(format!(
 			r####"
@@ -641,7 +676,95 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 		MAIN_STYLE,
 		generate_menu(None)
 	)))
-	//Ok(warp::redirect(warp::http::Uri::from_static("https://www.google.com")))
+}
+
+
+async fn article_create_page_post(
+	db: Arc<Mutex<Database>>,
+	param_map: HashMap<String, String>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+	let mut db = db.lock().await;
+	
+	let art = Article {
+		id: 0,
+		title: param_map.get("article_title").unwrap().to_string(), //TODO: Dangerous unwrap here, can crash server!
+		text: "".to_string(),
+		date_created: Utc::now().naive_utc(),
+		date_modified: Utc::now().naive_utc(),
+	};
+	
+	let create_result = db.create_article(&art);
+	if let Some(id) = create_result {
+		Ok(warp::redirect(warp::http::Uri::from_maybe_shared(format!("/article/{}", id)).unwrap()).into_response())
+	} else {
+		Ok(warp::reply::html(format!(
+		r####"
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
+{}
+		</style>
+	</head>
+	<body>
+		{}
+		<div class="main_content">
+			<div class="content markdown">
+				<p>
+					Could not create article. Title already existing?
+				</p>
+			</div>
+		</div>
+	</body>
+</html>
+"####,
+			MAIN_STYLE,
+			generate_menu(None)
+		)).into_response())
+	}
+}
+
+
+async fn article_create_page(
+	db: Arc<Mutex<Database>>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+	let mut db = db.lock().await;
+
+	Ok(warp::reply::html(format!(
+		r####"
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
+{}
+		</style>
+	</head>
+	<body>
+		{}
+		<div class="main_content">
+			<div class="content markdown">
+				<p>
+					<form action="/create/article" method="post">
+						<label for="article_title">Title:</label><input type="text" id="article_title" name="article_title" class="editor_input" value="">
+						<input type="submit" class="editor_submit" value="Create">
+					</form>
+				</p>
+			</div>
+		</div>
+	</body>
+</html>
+"####,
+		MAIN_STYLE,
+		generate_menu(None)
+	)))
 }
 
 fn generate_menu(article_number_opt: Option<rowid>) -> String {
@@ -654,6 +777,12 @@ fn generate_menu(article_number_opt: Option<rowid>) -> String {
 					Navigation:
 					<ul>
 						<li><a href="/">Home</a></li>
+					</ul>
+				</p>
+				<p>
+					Wiki:
+					<ul>
+						<li><a href="/create/article">Create article</a></li>
 					</ul>
 				</p>
 				<p>
@@ -676,6 +805,12 @@ fn generate_menu(article_number_opt: Option<rowid>) -> String {
 					Navigation:
 					<ul>
 						<li><a href="/">Home</a></li>
+					</ul>
+				</p>
+				<p>
+					Wiki:
+					<ul>
+						<li><a href="/create/article">Create article</a></li>
 					</ul>
 				</p>
 			</div>
