@@ -383,11 +383,14 @@ async fn article_edit_page(
 {}
 
 {}
+
+{}
 		</style>
 	</head>
 	<body>
-		<link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css"> <!-- TODO: Self-host / hardcode this! -->
-		<script src="https://unpkg.com/easymde/dist/easymde.min.js"></script> <!-- TODO: Self-host / hardcode this! -->
+		<script>
+			{}
+		</script>
 		
 		
 		{}
@@ -423,6 +426,8 @@ async fn article_edit_page(
 "####,
 			GITHUB_MARKDOWN,
 			MAIN_STYLE,
+			include_str!("easymde/easymde.min.css"),
+			include_str!("easymde/easymde.min.js"),
 			generate_menu(Some(article_number)),
 			article_number,
 			article_number,
