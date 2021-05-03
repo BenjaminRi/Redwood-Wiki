@@ -519,7 +519,7 @@ async fn article_page(
 			//println!("Text: {:?}", &event);
 			match event {
 				Event::Start(Tag::CodeBlock(language)) => {
-					let mut syntax = if let CodeBlockKind::Fenced(lang_str) = &language {
+					let syntax = if let CodeBlockKind::Fenced(lang_str) = &language {
 						syntax_set.find_syntax_by_token(&lang_str)
 					} else {
 						None
@@ -737,10 +737,8 @@ async fn article_create_page_post(
 }
 
 async fn article_create_page(
-	db: Arc<Mutex<Database>>,
+	_db: Arc<Mutex<Database>>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-	let mut db = db.lock().await;
-
 	Ok(warp::reply::html(format!(
 		r####"
 <!DOCTYPE html>
