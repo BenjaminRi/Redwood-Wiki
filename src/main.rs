@@ -514,11 +514,11 @@ async fn article_page(
 
 		let syntax_set = SyntaxSet::load_defaults_newlines();
 		let mut html_generator: Option<ClassedHTMLGenerator> = None;
-		
+
 		/*let mut callback = |link: pulldown_cmark::BrokenLink<'_>| {
 			println!("{:?}", link.reference);
-            Some((CowStr::Boxed("a".to_owned().into_boxed_str()), CowStr::Boxed("b".to_owned().into_boxed_str())))
-        };
+			Some((CowStr::Boxed("a".to_owned().into_boxed_str()), CowStr::Boxed("b".to_owned().into_boxed_str())))
+		};
 
 		let parser = Parser::new_with_broken_link_callback(&article.text, options, Some(&mut callback)).map(|event| {*/
 
