@@ -29,6 +29,7 @@ struct Article {
 	text: String,
 	date_created: chrono::NaiveDateTime,
 	date_modified: chrono::NaiveDateTime,
+	revision: i64,
 }
 
 //https://blog.joco.dev/posts/warp_auth_server_tutorial
@@ -48,7 +49,8 @@ impl Database {
 					title         TEXT NOT NULL UNIQUE,
 					text          TEXT NOT NULL,
 					date_created  DATETIME NOT NULL,
-					date_modified DATETIME NOT NULL
+					date_modified DATETIME NOT NULL,
+					revision      INTEGER NOT NULL
 				)",
 				params![],
 			)
@@ -59,8 +61,8 @@ impl Database {
 		let now = Utc::now().naive_utc();
 		if let Ok(1) = self.conn
 			.execute(
-				"INSERT INTO article (title, text, date_created, date_modified) VALUES (?1, ?2, ?3, ?4)",
-				params![article.title, article.text, now, now],
+				"INSERT INTO article (title, text, date_created, date_modified, revision) VALUES (?1, ?2, ?3, ?4, ?5)",
+				params![article.title, article.text, now, now, article.revision],
 			) {
 			Some(self.conn.last_insert_rowid())
 		} else {
@@ -75,6 +77,7 @@ impl Database {
 			text: "TEXT_x".to_string(),
 			date_created: Utc::now().naive_utc(),
 			date_modified: Utc::now().naive_utc(),
+			revision: 0,
 		};
 		self.conn
 			.execute(
@@ -84,7 +87,7 @@ impl Database {
 			.unwrap();
 		let mut stmt = self
 			.conn
-			.prepare("SELECT id, title, text, date_created, date_modified FROM article")
+			.prepare("SELECT id, title, text, date_created, date_modified, revision FROM article")
 			.unwrap();
 		let article_iter = stmt
 			.query_map(params![], |row| {
@@ -94,6 +97,7 @@ impl Database {
 					text: row.get(2)?,
 					date_created: row.get(3)?,
 					date_modified: row.get(4)?,
+					revision: row.get(5)?,
 				})
 			})
 			.unwrap();
@@ -107,7 +111,7 @@ impl Database {
 		let mut stmt = self
 			.conn
 			.prepare(
-				"SELECT id, title, text, date_created, date_modified FROM article WHERE id = ?",
+				"SELECT id, title, text, date_created, date_modified, revision FROM article WHERE id = ?",
 			)
 			.unwrap();
 		let mut article_iter = stmt
@@ -118,6 +122,7 @@ impl Database {
 					text: row.get(2)?,
 					date_created: row.get(3)?,
 					date_modified: row.get(4)?,
+					revision: row.get(5)?,
 				})
 			})
 			.unwrap();
@@ -180,6 +185,9 @@ impl Database {
 		arguments.push(Box::new(now.to_sql().unwrap()));
 		query.push(delim);
 		query.push_str(" date_modified = ? ");
+
+		query.push(delim);
+		query.push_str(" revision = revision + 1 ");
 
 		arguments.push(Box::new(id.to_sql().unwrap()));
 		query.push_str("WHERE id = ?");
@@ -707,6 +715,7 @@ async fn article_create_page_post(
 		text: "".to_string(),
 		date_created: Utc::now().naive_utc(),
 		date_modified: Utc::now().naive_utc(),
+		revision: 0,
 	};
 
 	let create_result = db.create_article(&art);
