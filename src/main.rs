@@ -157,6 +157,7 @@ impl Database {
 	) -> Result<usize, ()> {
 		let mut query = "UPDATE article SET".to_string();
 
+		let now = Utc::now().naive_utc();
 		let mut arguments: Vec<Box<dyn rusqlite::ToSql>> = vec![];
 
 		let mut need_delim = false;
@@ -175,6 +176,10 @@ impl Database {
 				query.push_str(sql_str);
 			}
 		}
+
+		arguments.push(Box::new(now.to_sql().unwrap()));
+		query.push(delim);
+		query.push_str(" date_modified = ? ");
 
 		arguments.push(Box::new(id.to_sql().unwrap()));
 		query.push_str("WHERE id = ?");
