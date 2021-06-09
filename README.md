@@ -25,6 +25,7 @@ You probably shouldn't. I'm a single individual with way too little time on my h
 - [x] Display articles
 - [x] Create articles
 - [x] Edit articles
+- [ ] Search for article
 - [x] Markdown highlighting in article editor
 - [ ] Preview articles during editing
 - [x] Code highlighting (supports Sublime Text's default open source syntax definitions)
