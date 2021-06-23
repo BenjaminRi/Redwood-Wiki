@@ -3,7 +3,7 @@ use warp::Filter;
 use chrono;
 use chrono::Utc;
 
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, types::ToSqlOutput, Connection, OpenFlags, Result};
 
 use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 
@@ -32,6 +32,67 @@ struct Article {
 	revision: i64,
 }
 
+#[derive(Debug)]
+struct WikiSemVer {
+	major: u32,
+	minor: u32,
+	patch: u32,
+}
+
+impl rusqlite::ToSql for WikiSemVer {
+	fn to_sql(&self) -> Result<ToSqlOutput<'_>> {
+		Ok(ToSqlOutput::Owned(rusqlite::types::Value::Text(format!(
+			"{}.{}.{}",
+			self.major, self.minor, self.patch
+		))))
+	}
+}
+
+impl rusqlite::types::FromSql for WikiSemVer {
+	fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+		let version_str = value.as_str()?;
+		let mut version_iter = version_str.split('.');
+
+		fn parse_u32(in_str: &str) -> Option<u32> {
+			if in_str.starts_with("+") {
+				// Do not accept strings like `+10`
+				// We don't want versions like `+1.+3.+9`
+				None
+			} else {
+				in_str.parse::<u32>().ok()
+			}
+		}
+
+		match (
+			version_iter.next(),
+			version_iter.next(),
+			version_iter.next(),
+		) {
+			(Some(major), Some(minor), Some(patch)) => {
+				match (parse_u32(major), parse_u32(minor), parse_u32(patch)) {
+					(Some(major), Some(minor), Some(patch)) => Ok(WikiSemVer {
+						major,
+						minor,
+						patch,
+					}),
+					_ => Err(rusqlite::types::FromSqlError::InvalidType), // Could not parse individual slices into u32
+				}
+			}
+			_ => Err(rusqlite::types::FromSqlError::InvalidType), // Could not slice version into 3-tuple
+		}
+	}
+}
+
+#[derive(Debug)]
+struct TableLayout {
+	id: rowid,
+	version: WikiSemVer,
+	migrating_to_version: Option<WikiSemVer>,
+	date_created: chrono::NaiveDateTime,
+	date_migration_begin: Option<chrono::NaiveDateTime>,
+	date_migration_complete: Option<chrono::NaiveDateTime>,
+}
+
 //https://blog.joco.dev/posts/warp_auth_server_tutorial
 
 struct Database {
@@ -40,11 +101,13 @@ struct Database {
 
 impl Database {
 	fn init_tables(&mut self) {
+		// Note: SQLite does not have a DATETIME type
+		// Therefore, we implement datetime types as
+		// TEXT with ISO 8601 format.
+
 		self.conn
 			.execute(
-				// Note: SQLite does not have a DATETIME type
-				// Therefore, these types are TEXT with ISO 8601 format
-				"CREATE TABLE IF NOT EXISTS article (
+				"CREATE TABLE article (
 					id            INTEGER PRIMARY KEY AUTOINCREMENT,
 					title         TEXT NOT NULL UNIQUE,
 					text          TEXT NOT NULL,
@@ -55,6 +118,107 @@ impl Database {
 				params![],
 			)
 			.unwrap();
+
+		// The following table MUST only ever have one row.
+		// Note that this table MUST always be present and
+		// MUST NOT ever change its layout.
+
+		// The versions are stored as strings. They follow a
+		// simplified semver ( https://semver.org/ ) format
+		// that only allows a three-tuple of u32 integers
+		// (e.g. 1.1.9 is allowed, 1.1.9-alpha is not)
+
+		// `version` is a version that indicates the
+		// current state of the table layout.
+		// Semver rules apply when opening the database.
+		// Note that the format version is not necessarily
+		// the same as the active `redwood-wiki` version.
+
+		// `migrating_to_version` is NULL during normal operation.
+		// During database migration, it contains the format version
+		// we migrate to. Incomplete or cancelled database migrations
+		// can be detected with the help of this field. After the
+		// migration, the field must be reset to NULL again.
+
+		// When a migration starts, `date_migration_begin` is set
+		// to the current timestamp and `date_migration_complete` is
+		// set to NULL. Additionally, `migrating_to_version` is set
+		// to the version we migrate to. These three modifications
+		// must be done atomically in the same transaction.
+
+		// When the migration is complete, `date_migration_complete` is set
+		// to the current timestamp and `date_migration_begin` is left
+		// untouched. Additionally, `migrating_to_version` is set
+		// to NULL again, atomically in the same transaction.
+
+		self.conn
+			.execute(
+				"CREATE TABLE table_layout (
+					id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+					version                   TEXT NOT NULL,
+					migrating_to_version      TEXT,
+					date_created              DATETIME NOT NULL,
+					date_migration_begin      DATETIME,
+					date_migration_complete   DATETIME
+				)",
+				params![],
+			)
+			.unwrap();
+
+		let layout = TableLayout {
+			id: 1,
+			version: WikiSemVer {
+				major: 0,
+				minor: 1,
+				patch: 0,
+			},
+			migrating_to_version: None,
+			date_created: Utc::now().naive_utc(),
+			date_migration_begin: None,
+			date_migration_complete: None,
+		};
+
+		self.conn
+			.execute(
+				"INSERT INTO table_layout (id, version, migrating_to_version, date_created, date_migration_begin, date_migration_complete) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+				params![layout.id, layout.version, layout.migrating_to_version, layout.date_created, layout.date_migration_begin, layout.date_migration_complete],
+			)
+			.unwrap();
+
+		println!("TL: {:?}", self.get_table_layout());
+	}
+
+	fn get_table_layout(&mut self) -> Option<TableLayout> {
+		let mut stmt = self
+			.conn
+			.prepare(
+				"SELECT id, version, migrating_to_version, date_created, date_migration_begin, date_migration_complete FROM table_layout WHERE id = ?",
+			)
+			.unwrap();
+		let mut table_layout_iter = stmt
+			.query_map(params![1], |row| {
+				Ok(TableLayout {
+					id: row.get(0)?,
+					version: row.get(1)?,
+					migrating_to_version: row.get(2)?,
+					date_created: row.get(3)?,
+					date_migration_begin: row.get(4)?,
+					date_migration_complete: row.get(5)?,
+				})
+			})
+			.unwrap();
+
+		if let Some(table_layout_result) = table_layout_iter.next() {
+			match table_layout_result {
+				Ok(table_layout) => Some(table_layout),
+				Err(err) => {
+					println!("lookup failed: {:?}", err);
+					None
+				}
+			}
+		} else {
+			None
+		}
 	}
 
 	fn create_article(&mut self, article: &Article) -> Option<rowid> {
@@ -320,7 +484,12 @@ async fn main() {
 
 	//SQLITE TEST
 
-	let conn = Connection::open("test.sqlite").unwrap();
+	let path = "test.sqlite";
+	let conn = Connection::open_with_flags(
+		path,
+		OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
+	)
+	.unwrap();
 	let mut db = Database { conn };
 	db.init_tables();
 	//db.test_tables();
