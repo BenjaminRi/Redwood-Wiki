@@ -19,6 +19,7 @@ use rusqlite::types::FromSql;
 use rusqlite::ToSql;
 
 use std::collections::HashMap;
+use std::path::Path;
 
 use i64 as rowid;
 
@@ -485,13 +486,16 @@ async fn main() {
 	//SQLITE TEST
 
 	let path = "test.sqlite";
+	let init_needed = !Path::new(path).exists();
 	let conn = Connection::open_with_flags(
 		path,
 		OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
 	)
 	.unwrap();
 	let mut db = Database { conn };
-	db.init_tables();
+	if init_needed {
+		db.init_tables();
+	}
 	//db.test_tables();
 
 	//db.update_article(4, Some("xA".to_string()), Some("xB".to_string()));
