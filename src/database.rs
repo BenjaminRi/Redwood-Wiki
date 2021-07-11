@@ -5,7 +5,7 @@ use std::path::Path;
 use chrono;
 use chrono::Utc;
 
-use rusqlite::{params, types::FromSql, types::ToSqlOutput, Connection, OpenFlags, Result, ToSql};
+use rusqlite::{params, types::FromSql, types::ToSqlOutput, Connection, OpenFlags, ToSql};
 
 #[derive(Debug)]
 pub struct Article {
@@ -25,7 +25,7 @@ pub struct WikiSemVer {
 }
 
 impl ToSql for WikiSemVer {
-	fn to_sql(&self) -> Result<ToSqlOutput<'_>> {
+	fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
 		Ok(ToSqlOutput::Owned(rusqlite::types::Value::Text(format!(
 			"{}.{}.{}",
 			self.major, self.minor, self.patch
