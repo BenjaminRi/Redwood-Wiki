@@ -90,6 +90,14 @@ pub enum OpenMode {
 
 impl Database {
 	pub fn new(database_path: &Path, open_mode: OpenMode) -> Database {
+		// Note: Here, SQLite forces us to open the database
+		// with a racy file exists check. The reason for that
+		// is that the `SQLITE_OPEN_EXCLUSIVE ` flag is not yet
+		// available. However, it will most likely be present
+		// in future releases, allowing a race condition free
+		// database initialization. More details here:
+		// https://sqlite.org/forum/forumpost/680cd395b4bc97c6
+
 		// TODO: open_mode is not used, its enum variants aren't implemented.
 		// TODO: Return Result<Database, Error> rather than Database here.
 		let init_needed = !database_path.exists();
