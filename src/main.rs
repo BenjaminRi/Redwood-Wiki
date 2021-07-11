@@ -18,17 +18,16 @@ use std::path::Path;
 
 mod database;
 
-use i64 as rowid;
-
 use database::Article;
 use database::Database;
+use database::Rowid;
 
 //https://blog.joco.dev/posts/warp_auth_server_tutorial
 
-fn rowid_from_str(link_str: &str) -> Option<rowid> {
+fn rowid_from_str(link_str: &str) -> Option<Rowid> {
 	link_str
 		.strip_prefix("id:")
-		.map_or(None, |id_str| id_str.parse::<rowid>().ok())
+		.map_or(None, |id_str| id_str.parse::<Rowid>().ok())
 }
 
 fn expand_id_in_text(text: String, db: &mut Database) -> String {
@@ -72,7 +71,7 @@ fn expand_id_in_text(text: String, db: &mut Database) -> String {
 			}
 			ParserState::MatchRowid(mut id_buf) => {
 				if ascii_char < b'0' || ascii_char > b'9' {
-					if let Ok(id) = std::str::from_utf8(&id_buf).unwrap().parse::<rowid>() {
+					if let Ok(id) = std::str::from_utf8(&id_buf).unwrap().parse::<Rowid>() {
 						let title = db
 							.get_article_title(id)
 							.or_else(|| Some("Unknown Article!".to_string()))
@@ -147,7 +146,7 @@ async fn main() {
 	let article_path_post = warp::post()
 		.and(warp::path("article"))
 		.and(db.clone())
-		.and(warp::path::param::<rowid>())
+		.and(warp::path::param::<Rowid>())
 		.and(warp::path::end())
 		.and(warp::body::form()) //This does not have a default size limit, it would be wise to use one to prevent a overly large request from using too much memory.
 		//.and(warp::body::content_length_limit(1024 * 32))
@@ -155,13 +154,13 @@ async fn main() {
 	let article_path_get = warp::get()
 		.and(warp::path("article"))
 		.and(db.clone())
-		.and(warp::path::param::<rowid>())
+		.and(warp::path::param::<Rowid>())
 		.and(warp::path::end())
 		.and_then(article_page);
 	let article_edit_path = warp::path("edit")
 		.and(warp::path("article"))
 		.and(db.clone())
-		.and(warp::path::param::<rowid>())
+		.and(warp::path::param::<Rowid>())
 		.and(warp::path::end())
 		.and_then(article_edit_page);
 	let article_create_get_path = warp::get()
@@ -189,7 +188,7 @@ async fn main() {
 
 async fn article_edit_page(
 	db: Arc<Mutex<Database>>,
-	article_number: rowid,
+	article_number: Rowid,
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
 
@@ -298,7 +297,7 @@ async fn article_edit_page(
 
 async fn article_page_post(
 	db: Arc<Mutex<Database>>,
-	article_number: rowid,
+	article_number: Rowid,
 	param_map: HashMap<String, String>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	{
@@ -315,7 +314,7 @@ async fn article_page_post(
 
 async fn article_page(
 	db: Arc<Mutex<Database>>,
-	article_number: rowid,
+	article_number: Rowid,
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
 
@@ -606,7 +605,7 @@ async fn article_create_page(
 	)))
 }
 
-fn generate_menu(article_number_opt: Option<rowid>) -> String {
+fn generate_menu(article_number_opt: Option<Rowid>) -> String {
 	if let Some(article_number) = article_number_opt {
 		format!(
 			r#"<div class="side_content">

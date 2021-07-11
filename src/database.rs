@@ -1,4 +1,4 @@
-use i64 as rowid;
+pub type Rowid = i64;
 
 use std::path::Path;
 
@@ -9,7 +9,7 @@ use rusqlite::{params, types::FromSql, types::ToSqlOutput, Connection, OpenFlags
 
 #[derive(Debug)]
 pub struct Article {
-	pub id: rowid,
+	pub id: Rowid,
 	pub title: String,
 	pub text: String,
 	pub date_created: chrono::NaiveDateTime,
@@ -70,7 +70,7 @@ impl FromSql for WikiSemVer {
 
 #[derive(Debug)]
 pub struct TableLayout {
-	id: rowid,
+	id: Rowid,
 	version: WikiSemVer,
 	migrating_to_version: Option<WikiSemVer>,
 	date_created: chrono::NaiveDateTime,
@@ -229,7 +229,7 @@ impl Database {
 		}
 	}
 
-	pub fn create_article(&mut self, article: &Article) -> Option<rowid> {
+	pub fn create_article(&mut self, article: &Article) -> Option<Rowid> {
 		let now = Utc::now().naive_utc();
 		if let Ok(1) = self.conn
 			.execute(
@@ -280,7 +280,7 @@ impl Database {
 		}
 	}
 
-	pub fn get_article(&mut self, id: rowid) -> Option<Article> {
+	pub fn get_article(&mut self, id: Rowid) -> Option<Article> {
 		let mut stmt = self
 			.conn
 			.prepare(
@@ -314,7 +314,7 @@ impl Database {
 		}
 	}
 
-	pub fn get_article_title(&mut self, id: rowid) -> Option<String> {
+	pub fn get_article_title(&mut self, id: Rowid) -> Option<String> {
 		let mut stmt = self
 			.conn
 			.prepare("SELECT title FROM article WHERE id = ?")
@@ -331,7 +331,7 @@ impl Database {
 
 	pub fn update_article(
 		&mut self,
-		id: rowid,
+		id: Rowid,
 		title: Option<&str>,
 		text: Option<&str>,
 	) -> Result<usize, ()> {
