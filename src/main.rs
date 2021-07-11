@@ -186,7 +186,7 @@ impl Database {
 			)
 			.unwrap();
 
-		println!("TL: {:?}", self.get_table_layout());
+		log::debug!("Table layout: {:?}", self.get_table_layout());
 	}
 
 	fn get_table_layout(&mut self) -> Option<TableLayout> {
@@ -213,11 +213,12 @@ impl Database {
 			match table_layout_result {
 				Ok(table_layout) => Some(table_layout),
 				Err(err) => {
-					println!("lookup failed: {:?}", err);
+					log::error!("Could not parse table layout: {:?}", err);
 					None
 				}
 			}
 		} else {
+			log::error!("Could not find table layout!");
 			None
 		}
 	}
@@ -268,7 +269,7 @@ impl Database {
 			.unwrap();
 
 		for article in article_iter {
-			println!("Found article {:?}", article.unwrap());
+			log::debug!("Found article {:?}", article.unwrap());
 		}
 	}
 
@@ -296,11 +297,12 @@ impl Database {
 			match article_result {
 				Ok(article) => Some(article),
 				Err(err) => {
-					println!("lookup failed: {:?}", err);
+					log::error!("Could not parse article: {:?}", err);
 					None
 				}
 			}
 		} else {
+			log::debug!("Could not find article with id {}", id);
 			None
 		}
 	}
@@ -315,6 +317,7 @@ impl Database {
 		if let Some(Ok(title)) = article_iter.next() {
 			Some(title)
 		} else {
+			log::debug!("Could not get tile for article with id {}", id);
 			None
 		}
 	}
@@ -359,11 +362,11 @@ impl Database {
 
 		match self.conn.execute(&query, &arguments[..]) {
 			Ok(updated) => {
-				println!("{} rows were updated", updated);
+				log::debug!("Article update: {} row successfully updated", updated);
 				Ok(updated)
 			}
 			Err(err) => {
-				println!("update failed: {:?}", err);
+				log::error!("Article update failed: {:?}", err);
 				Err(())
 			}
 		}
@@ -665,7 +668,7 @@ async fn article_page_post(
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	{
 		let mut db = db.lock().await;
-		//println!("Post request: {:?}", param_map);
+		log::trace!("Article update post request: {:?}", param_map);
 		db.update_article(
 			article_number,
 			param_map.get("article_title").map(|a| -> &str { a }),
@@ -881,6 +884,8 @@ async fn article_create_page_post(
 	param_map: HashMap<String, String>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
+
+	log::trace!("Article create post request: {:?}", param_map);
 
 	let art = Article {
 		id: 0,
