@@ -115,7 +115,7 @@ fn expand_id_in_text(text: String, db: &mut Database) -> String {
 // `/[verb]/[item-type]/[item-id]`, except for plain showing articles, which can simply omit the verb.
 // So, `/edit/article/1/Title-of-first-article` but `/article/1/Title-of-first-article` for showing.
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
 	fern::Dispatch::new()
 		// Perform allocation-free log formatting

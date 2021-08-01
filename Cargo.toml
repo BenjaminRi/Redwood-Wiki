@@ -11,10 +11,10 @@ repository = "https://github.com/BenjaminRi/Redwood-Wiki"
 
 [dependencies]
 chrono = "0.4.19"
-log = "0.4.11"
+log = "0.4.14"
 fern = "0.6.0"
-tokio = { version = "0.2", features = ["macros"] }
-warp = "0.2.5"
-rusqlite = { version = "0.24.1", features = ["bundled", "chrono"] }
+tokio = { version = "1.9.0", features = ["macros"] }
+warp = "0.3.1"
+rusqlite = { version = "0.24.2", features = ["bundled", "chrono"] }
 pulldown-cmark = { version = "0.8.0", default-features = false }
-syntect = "4.5.0"
+syntect = "4.6.0"
