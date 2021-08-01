@@ -88,33 +88,111 @@ pub enum OpenMode {
 	OpenOrCreate,
 }
 
-impl Database {
-	pub fn new(database_path: &Path, open_mode: OpenMode) -> Database {
-		// Note: Here, SQLite forces us to open the database
-		// with a racy file exists check. The reason for that
-		// is that the `SQLITE_OPEN_EXCLUSIVE ` flag is not yet
-		// available. However, it will most likely be present
-		// in future releases, allowing a race condition free
-		// database initialization. More details here:
-		// https://sqlite.org/forum/forumpost/680cd395b4bc97c6
+/*#[non_exhaustive]
+pub enum DatabaseConnectError {
+	BlobSizeError,
+}
 
-		// TODO: open_mode is not used, its enum variants aren't implemented.
-		// TODO: Return Result<Database, Error> rather than Database here.
-		let init_needed = !database_path.exists();
-		let conn = Connection::open_with_flags(
-			database_path,
-			OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
-		)
-		.unwrap();
+type Result<T, E = Error> = Result<T, E>;
 
-		let mut db = Database { conn };
 
-		if init_needed {
-			db.init_tables();
+
+/// A typedef of the result returned by many methods.
+pub type DatabaseResult<T, E = u32> = result::Result<T, E>;
+
+
+*/
+
+#[derive(Debug)]
+pub enum DatabaseConnectError {
+	AlreadyExists,
+	CannotOpen,
+	CouldNotCreate,
+}
+
+impl From<rusqlite::Error> for DatabaseConnectError {
+	fn from(sqlite_error: rusqlite::Error) -> DatabaseConnectError {
+		/*log::error!("SQLite error: {:?}", sqlite_error);
+
+		if let Some(rusqlite::ErrorCode::CannotOpen) = sqlite_error.code {
+			DatabaseConnectError::CannotOpen
+		} else {
+			DatabaseConnectError::CouldNotCreate
+		}*/
+		DatabaseConnectError::CouldNotCreate
+	}
+}
+
+pub struct DatabaseConnection {
+	database: Database,
+}
+
+impl DatabaseConnection {
+	pub fn new(
+		database_path: &Path,
+		open_mode: OpenMode,
+	) -> Result<DatabaseConnection, DatabaseConnectError> {
+		pub fn create_new(
+			database_path: &Path,
+		) -> Result<DatabaseConnection, DatabaseConnectError> {
+			// Note: Here, SQLite forces us to open the database
+			// with a racy file exists check. The reason for that
+			// is that the `SQLITE_OPEN_EXCLUSIVE ` flag is not yet
+			// available. However, it will most likely be present
+			// in future releases, allowing a race condition free
+			// database initialization. More details here:
+			// https://sqlite.org/forum/forumpost/680cd395b4bc97c6
+
+			if database_path.exists() {
+				// TODO: Instead of exists check, use `SQLITE_OPEN_EXCLUSIVE `
+				return Err(DatabaseConnectError::AlreadyExists);
+			}
+
+			let conn = Connection::open_with_flags(
+				database_path,
+				OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
+			)?;
+
+			let mut database = Database { conn };
+			database.init_tables();
+			let mut dbc = DatabaseConnection { database };
+			return Ok(dbc);
 		}
-		db
+
+		pub fn open_existing(
+			database_path: &Path,
+		) -> Result<DatabaseConnection, DatabaseConnectError> {
+			let conn =
+				Connection::open_with_flags(database_path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+
+			let mut database = Database { conn };
+			let mut dbc = DatabaseConnection { database };
+			return Ok(dbc);
+		}
+
+		match open_mode {
+			OpenMode::CreateNew => create_new(database_path),
+			OpenMode::OpenExisting => open_existing(database_path),
+			OpenMode::OpenOrCreate => {
+				// Note: This check is racy, but the worst case is
+				// that we try to create a database that already
+				// exists and fail (once `create_new` becomes
+				// atomic)
+				if database_path.exists() {
+					open_existing(database_path)
+				} else {
+					create_new(database_path)
+				}
+			}
+		}
 	}
 
+	pub fn init(self) -> Database {
+		self.database
+	}
+}
+
+impl Database {
 	pub fn init_tables(&mut self) {
 		// Note: SQLite does not have a DATETIME type
 		// Therefore, we implement datetime types as

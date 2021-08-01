@@ -20,6 +20,7 @@ mod database;
 
 use database::Article;
 use database::Database;
+use database::DatabaseConnection;
 use database::Rowid;
 
 //https://blog.joco.dev/posts/warp_auth_server_tutorial
@@ -137,7 +138,9 @@ async fn main() {
 
 	log::info!("Starting Redwood-Wiki!");
 
-	let db = Database::new(Path::new("./test.sqlite"), database::OpenMode::OpenOrCreate);
+	let db = DatabaseConnection::new(Path::new("./test.sqlite"), database::OpenMode::OpenOrCreate)
+		.unwrap()
+		.init();
 
 	let db = Arc::new(Mutex::new(db));
 	let db = warp::any().map(move || db.clone());
