@@ -82,6 +82,7 @@ pub struct Database {
 	conn: rusqlite::Connection,
 }
 
+#[allow(dead_code)]
 pub enum OpenMode {
 	CreateNew,
 	OpenExisting,
@@ -114,14 +115,10 @@ pub enum DatabaseConnectError {
 impl From<rusqlite::Error> for DatabaseConnectError {
 	fn from(sqlite_error: rusqlite::Error) -> DatabaseConnectError {
 		log::error!("SQLite error: {:?}", sqlite_error);
-		if let rusqlite::Error::SqliteFailure(inner, _) = sqlite_error{
+		if let rusqlite::Error::SqliteFailure(inner, _) = sqlite_error {
 			match inner.code {
-				rusqlite::ErrorCode::CannotOpen => {
-					DatabaseConnectError::CannotOpen
-				}
-				_ => {
-					DatabaseConnectError::Unknown
-				}
+				rusqlite::ErrorCode::CannotOpen => DatabaseConnectError::CannotOpen,
+				_ => DatabaseConnectError::Unknown,
 			}
 		} else {
 			DatabaseConnectError::Unknown
@@ -155,15 +152,33 @@ impl DatabaseConnection {
 				return Err(DatabaseConnectError::AlreadyExists);
 			}
 
-			let conn = Connection::open_with_flags(
+			let conn_result = Connection::open_with_flags(
 				database_path,
 				OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
-			)?;
+			);
 
+			if let Err(rusqlite::Error::SqliteFailure(
+				rusqlite::ffi::Error {
+					code: rusqlite::ErrorCode::CannotOpen,
+					..
+				},
+				_,
+			)) = &conn_result
+			{
+				// We can unwrap_err here because we know it is an error.
+				log::error!("SQLite error: {:?}", conn_result.unwrap_err());
+				// SQLite returns "CannotOpen" when it can't create
+				// the database file.
+				// This is why we need a special error code mapping here.
+				// The reason for this SQLite behavior is unknown.
+				return Err(DatabaseConnectError::CouldNotCreate);
+			}
+
+			let conn = conn_result?;
 			let mut database = Database { conn };
 			database.init_tables();
-			let mut dbc = DatabaseConnection { database };
-			return Ok(dbc);
+			let dbc = DatabaseConnection { database };
+			Ok(dbc)
 		}
 
 		pub fn open_existing(
@@ -172,12 +187,12 @@ impl DatabaseConnection {
 			let conn =
 				Connection::open_with_flags(database_path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
 
-			let mut database = Database { conn };
-			let mut dbc = DatabaseConnection { database };
+			let database = Database { conn };
+			let dbc = DatabaseConnection { database };
 			return Ok(dbc);
 		}
 
-		match open_mode {
+		let dbc = match open_mode {
 			OpenMode::CreateNew => create_new(database_path),
 			OpenMode::OpenExisting => open_existing(database_path),
 			OpenMode::OpenOrCreate => {
@@ -191,7 +206,11 @@ impl DatabaseConnection {
 					create_new(database_path)
 				}
 			}
-		}
+		}?;
+
+		// TODO: Perform compatibility check here
+
+		Ok(dbc)
 	}
 
 	pub fn init(self) -> Database {
