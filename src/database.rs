@@ -108,18 +108,24 @@ pub enum DatabaseConnectError {
 	AlreadyExists,
 	CannotOpen,
 	CouldNotCreate,
+	Unknown,
 }
 
 impl From<rusqlite::Error> for DatabaseConnectError {
 	fn from(sqlite_error: rusqlite::Error) -> DatabaseConnectError {
-		/*log::error!("SQLite error: {:?}", sqlite_error);
-
-		if let Some(rusqlite::ErrorCode::CannotOpen) = sqlite_error.code {
-			DatabaseConnectError::CannotOpen
+		log::error!("SQLite error: {:?}", sqlite_error);
+		if let rusqlite::Error::SqliteFailure(inner, _) = sqlite_error{
+			match inner.code {
+				rusqlite::ErrorCode::CannotOpen => {
+					DatabaseConnectError::CannotOpen
+				}
+				_ => {
+					DatabaseConnectError::Unknown
+				}
+			}
 		} else {
-			DatabaseConnectError::CouldNotCreate
-		}*/
-		DatabaseConnectError::CouldNotCreate
+			DatabaseConnectError::Unknown
+		}
 	}
 }
 
@@ -144,7 +150,8 @@ impl DatabaseConnection {
 			// https://sqlite.org/forum/forumpost/680cd395b4bc97c6
 
 			if database_path.exists() {
-				// TODO: Instead of exists check, use `SQLITE_OPEN_EXCLUSIVE `
+				// TODO: Instead of exists check, use `SQLITE_OPEN_EXCLUSIVE`
+				// (see comment above)
 				return Err(DatabaseConnectError::AlreadyExists);
 			}
 
@@ -174,10 +181,10 @@ impl DatabaseConnection {
 			OpenMode::CreateNew => create_new(database_path),
 			OpenMode::OpenExisting => open_existing(database_path),
 			OpenMode::OpenOrCreate => {
-				// Note: This check is racy, but the worst case is
-				// that we try to create a database that already
-				// exists and fail (once `create_new` becomes
-				// atomic)
+				// Note: This check is racy, but once `create_new`
+				// becomes atomic, the worst consequence is that we try
+				// to create a database that already exists and fail
+				// without causing any harm or undefined states.
 				if database_path.exists() {
 					open_existing(database_path)
 				} else {
