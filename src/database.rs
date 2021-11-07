@@ -484,7 +484,7 @@ impl Database {
 		arguments.push(Box::new(id.to_sql().unwrap()));
 		query.push_str("WHERE id = ?");
 
-		match self.conn.execute(&query, &arguments[..]) {
+		match self.conn.execute(&query, rusqlite::params_from_iter(arguments.iter())) {
 			Ok(updated) => {
 				log::debug!("Article update: {} row successfully updated", updated);
 				Ok(updated)
