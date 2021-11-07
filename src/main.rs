@@ -140,7 +140,8 @@ async fn main() {
 
 	let db = DatabaseConnection::new(Path::new("./test.sqlite"), database::OpenMode::OpenOrCreate)
 		.unwrap()
-		.init();
+		.init()
+		.unwrap();
 
 	let db = Arc::new(Mutex::new(db));
 	let db = warp::any().map(move || db.clone());

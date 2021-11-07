@@ -18,6 +18,7 @@ pub struct Article {
 }
 
 #[derive(Debug)]
+#[derive(std::cmp::PartialEq)]
 pub struct WikiSemVer {
 	major: u32,
 	minor: u32,
@@ -89,27 +90,20 @@ pub enum OpenMode {
 	OpenOrCreate,
 }
 
-/*#[non_exhaustive]
-pub enum DatabaseConnectError {
-	BlobSizeError,
-}
-
-type Result<T, E = Error> = Result<T, E>;
-
-
-
-/// A typedef of the result returned by many methods.
-pub type DatabaseResult<T, E = u32> = result::Result<T, E>;
-
-
-*/
-
 #[derive(Debug)]
 pub enum DatabaseConnectError {
 	AlreadyExists,
 	CannotOpen,
 	CouldNotCreate,
 	Unknown,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub enum DatabaseInitError {
+	CouldNotReadLayout,
+	UnsupportedLayout,
+	MigrationNeeded,
 }
 
 impl From<rusqlite::Error> for DatabaseConnectError {
@@ -208,13 +202,24 @@ impl DatabaseConnection {
 			}
 		}?;
 
-		// TODO: Perform compatibility check here
-
 		Ok(dbc)
 	}
 
-	pub fn init(self) -> Database {
-		self.database
+	pub fn init(mut self) -> Result<Database, DatabaseInitError> {
+		let layout = self.database.get_table_layout();
+		if let Some(layout) = layout {
+			if layout.version == (WikiSemVer {
+				major: 0,
+				minor: 1,
+				patch: 0,
+			}) {
+				Ok(self.database)
+			} else {
+				Err(DatabaseInitError::UnsupportedLayout)
+			}
+		} else {
+			Err(DatabaseInitError::CouldNotReadLayout)
+		}
 	}
 }
 
