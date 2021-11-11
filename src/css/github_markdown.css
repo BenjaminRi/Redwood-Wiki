@@ -24,11 +24,11 @@
 }
 
 .markdown h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
 	margin: 20px 0 10px;
 	padding: 0;
 	font-weight: bold;
@@ -38,32 +38,32 @@ h6 {
 }
 
 .markdown h1 tt,
-h1 code {
+.markdown h1 code {
 	font-size: inherit;
 }
 
 .markdown h2 tt,
-h2 code {
+.markdown h2 code {
 	font-size: inherit;
 }
 
 .markdown h3 tt,
-h3 code {
+.markdown h3 code {
 	font-size: inherit;
 }
 
 .markdown h4 tt,
-h4 code {
+.markdown h4 code {
 	font-size: inherit;
 }
 
 .markdown h5 tt,
-h5 code {
+.markdown h5 code {
 	font-size: inherit;
 }
 
 .markdown h6 tt,
-h6 code {
+.markdown h6 code {
 	font-size: inherit;
 }
 
@@ -97,13 +97,13 @@ h6 code {
 }
 
 .markdown p,
-blockquote,
-ul,
-ol,
-dl,
-li,
-table,
-pre {
+.markdown blockquote,
+.markdown ul,
+.markdown ol,
+.markdown dl,
+.markdown li,
+.markdown table,
+.markdown pre {
 	margin: 15px 0;
 }
 
@@ -116,21 +116,21 @@ pre {
 }
 
 .markdown a:first-child h1,
-a:first-child h2,
-a:first-child h3,
-a:first-child h4,
-a:first-child h5,
-a:first-child h6 {
+.markdown a:first-child h2,
+.markdown a:first-child h3,
+.markdown a:first-child h4,
+.markdown a:first-child h5,
+.markdown a:first-child h6 {
 	margin-top: 0;
 	padding-top: 0;
 }
 
 .markdown h1 p,
-h2 p,
-h3 p,
-h4 p,
-h5 p,
-h6 p {
+.markdown h2 p,
+.markdown h3 p,
+.markdown h4 p,
+.markdown h5 p,
+.markdown h6 p {
 	margin-top: 0;
 }
 
@@ -139,17 +139,17 @@ h6 p {
 }
 
 .markdown ul,
-ol {
+.markdown ol {
 	padding-left: 30px;
 }
 
 .markdown ul :first-child,
-ol :first-child {
+.markdown ol :first-child {
 	margin-top: 0;
 }
 
 .markdown ul :last-child,
-ol :last-child {
+.markdown ol :last-child {
 	margin-bottom: 0;
 }
 
@@ -235,12 +235,12 @@ ol :last-child {
 }
 
 .markdown table tr th :first-child,
-table tr td :first-child {
+.markdown table tr td :first-child {
 	margin-top: 0;
 }
 
 .markdown table tr th :last-child,
-table tr td :last-child {
+.markdown table tr td :last-child {
 	margin-bottom: 0;
 }
 
@@ -337,7 +337,7 @@ table tr td :last-child {
 }
 
 .markdown code,
-tt {
+.markdown tt {
 	margin: 0 2px;
 	padding: 0 5px;
 	white-space: nowrap;
@@ -375,7 +375,7 @@ tt {
 }
 
 .markdown pre code,
-pre tt {
+.markdown pre tt {
 	background-color: transparent;
 	border: none;
 }
