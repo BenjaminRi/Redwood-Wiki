@@ -181,12 +181,18 @@ async fn main() {
 		.and(warp::body::form()) //This does not have a default size limit, it would be wise to use one to prevent a overly large request from using too much memory.
 		//.and(warp::body::content_length_limit(1024 * 32))
 		.and_then(article_create_page_post);
+	let articles_path = warp::get()
+		.and(warp::path("articles"))
+		.and(db.clone())
+		.and(warp::path::end())
+		.and_then(articles_page);
 	let routes = index_path
 		.or(article_edit_path)
 		.or(article_path_get)
 		.or(article_path_post)
 		.or(article_create_get_path)
-		.or(article_create_post_path);
+		.or(article_create_post_path)
+		.or(articles_path);
 	warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
 
@@ -517,6 +523,87 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 	)))
 }
 
+async fn articles_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::Rejection> {
+	let mut db = db.lock().await;
+	let articles = db.get_all_articles();
+
+	fn generate_articles_list(articles: Vec<Article>) -> String {
+		let mut accumulator = String::new();
+		for article in &articles {
+			use std::fmt::Write;
+			write!(
+				accumulator,
+				"<a href=\"/article/{}\">{}</a> <span style=\"color: #BBBBBB;\">#{}</span><br>\n",
+				article.id, article.title, article.id
+			)
+			.unwrap();
+		}
+		accumulator
+	}
+
+	if let Some(articles) = articles {
+		Ok(warp::reply::html(format!(
+			r#"
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
+{}
+		</style>
+	</head>
+	<body>
+		{}
+		<div class="main_content">
+			<div class="content markdown">
+				<h2 style="margin-top: 0px;">Articles</h2>
+				<p>
+				{}
+				</p>
+			</div>
+		</div>
+	</body>
+</html>
+	"#,
+			MAIN_STYLE,
+			generate_menu(None),
+			generate_articles_list(articles)
+		)))
+	} else {
+		Ok(warp::reply::html(format!(
+			r#"
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
+{}
+		</style>
+	</head>
+	<body>
+		{}
+		<div class="main_content">
+			<div class="content markdown">
+				<p>
+					Could not fetch the articles.
+				</p>
+			</div>
+		</div>
+	</body>
+</html>
+	"#,
+			MAIN_STYLE,
+			generate_menu(None)
+		)))
+	}
+}
+
 async fn article_create_page_post(
 	db: Arc<Mutex<Database>>,
 	param_map: HashMap<String, String>,
@@ -619,6 +706,7 @@ fn generate_menu(article_number_opt: Option<Rowid>) -> String {
 					Navigation:
 					<ul>
 						<li><a href="/">Home</a></li>
+						<li><a href="/articles">All articles</a></li>
 					</ul>
 				</p>
 				<p>
@@ -646,6 +734,7 @@ fn generate_menu(article_number_opt: Option<Rowid>) -> String {
 					Navigation:
 					<ul>
 						<li><a href="/">Home</a></li>
+						<li><a href="/articles">All articles</a></li>
 					</ul>
 				</p>
 				<p>

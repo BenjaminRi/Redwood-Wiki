@@ -17,8 +17,7 @@ pub struct Article {
 	pub revision: i64,
 }
 
-#[derive(Debug)]
-#[derive(std::cmp::PartialEq)]
+#[derive(Debug, std::cmp::PartialEq)]
 pub struct WikiSemVer {
 	major: u32,
 	minor: u32,
@@ -208,11 +207,12 @@ impl DatabaseConnection {
 	pub fn init(mut self) -> Result<Database, DatabaseInitError> {
 		let layout = self.database.get_table_layout();
 		if let Some(layout) = layout {
-			if layout.version == (WikiSemVer {
-				major: 0,
-				minor: 1,
-				patch: 0,
-			}) {
+			if layout.version
+				== (WikiSemVer {
+					major: 0,
+					minor: 1,
+					patch: 0,
+				}) {
 				Ok(self.database)
 			} else {
 				Err(DatabaseInitError::UnsupportedLayout)
@@ -430,6 +430,35 @@ impl Database {
 			None
 		}
 	}
+	/// Get all existing articles
+	///
+	/// Note: This dumps the entire database. Depending on the
+	/// number of articles, this might be slow and use a lot of RAM
+	pub fn get_all_articles(&mut self) -> Option<Vec<Article>> {
+		let mut stmt = self
+			.conn
+			.prepare("SELECT id, title, text, date_created, date_modified, revision FROM article")
+			.unwrap();
+		let mut article_iter = stmt
+			.query_map(params![], |row| {
+				Ok(Article {
+					id: row.get(0)?,
+					title: row.get(1)?,
+					text: row.get(2)?,
+					date_created: row.get(3)?,
+					date_modified: row.get(4)?,
+					revision: row.get(5)?,
+				})
+			})
+			.unwrap();
+
+		let mut articles = Vec::new();
+		for article in article_iter {
+			articles.push(article.unwrap());
+		}
+
+		Some(articles)
+	}
 
 	pub fn get_article_title(&mut self, id: Rowid) -> Option<String> {
 		let mut stmt = self
@@ -484,7 +513,10 @@ impl Database {
 		arguments.push(Box::new(id.to_sql().unwrap()));
 		query.push_str("WHERE id = ?");
 
-		match self.conn.execute(&query, rusqlite::params_from_iter(arguments.iter())) {
+		match self
+			.conn
+			.execute(&query, rusqlite::params_from_iter(arguments.iter()))
+		{
 			Ok(updated) => {
 				log::debug!("Article update: {} row successfully updated", updated);
 				Ok(updated)
