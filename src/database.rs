@@ -465,10 +465,10 @@ impl Database {
 		let search_term = format!("%{}%", str::replace(search_term, "^", "^^").replace("%", "^%").replace("_", "^_"));
 		let mut stmt = self
 			.conn
-			.prepare("SELECT id, title, text, date_created, date_modified, revision FROM article WHERE text LIKE ? ESCAPE '^'")
+			.prepare("SELECT id, title, text, date_created, date_modified, revision FROM article WHERE title LIKE ? ESCAPE '^' OR text LIKE ? ESCAPE '^'")
 			.unwrap();
 		let article_iter = stmt
-			.query_map(params![search_term], |row| {
+			.query_map(params![search_term, search_term], |row| {
 				Ok(Article {
 					id: row.get(0)?,
 					title: row.get(1)?,
