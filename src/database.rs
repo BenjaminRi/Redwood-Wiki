@@ -439,8 +439,36 @@ impl Database {
 			.conn
 			.prepare("SELECT id, title, text, date_created, date_modified, revision FROM article")
 			.unwrap();
-		let mut article_iter = stmt
+		let article_iter = stmt
 			.query_map(params![], |row| {
+				Ok(Article {
+					id: row.get(0)?,
+					title: row.get(1)?,
+					text: row.get(2)?,
+					date_created: row.get(3)?,
+					date_modified: row.get(4)?,
+					revision: row.get(5)?,
+				})
+			})
+			.unwrap();
+
+		let mut articles = Vec::new();
+		for article in article_iter {
+			articles.push(article.unwrap());
+		}
+
+		Some(articles)
+	}
+	
+	/// Search article
+	pub fn search_articles(&mut self, search_term: &str) -> Option<Vec<Article>> {
+		let search_term = format!("%{}%", str::replace(search_term, "^", "^^").replace("%", "^%").replace("_", "^_"));
+		let mut stmt = self
+			.conn
+			.prepare("SELECT id, title, text, date_created, date_modified, revision FROM article WHERE text LIKE ? ESCAPE '^'")
+			.unwrap();
+		let article_iter = stmt
+			.query_map(params![search_term], |row| {
 				Ok(Article {
 					id: row.get(0)?,
 					title: row.get(1)?,

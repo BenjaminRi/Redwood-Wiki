@@ -161,6 +161,20 @@ async fn main() {
 		.and(warp::path::param::<Rowid>())
 		.and(warp::path::end())
 		.and_then(article_page);
+	let search_path_post = warp::post()
+		.and(warp::path("search"))
+		.and(warp::path("article"))
+		.and(db.clone())
+		.and(warp::path::end())
+		.and(warp::body::form()) //This does not have a default size limit, it would be wise to use one to prevent a overly large request from using too much memory.
+		//.and(warp::body::content_length_limit(1024 * 32))
+		.and_then(search_page_post);
+	let search_path_get = warp::get()
+		.and(warp::path("search"))
+		.and(warp::path("article"))
+		.and(db.clone())
+		.and(warp::path::end())
+		.and_then(search_page_get);
 	let article_edit_path = warp::path("edit")
 		.and(warp::path("article"))
 		.and(db.clone())
@@ -190,6 +204,8 @@ async fn main() {
 		.or(article_edit_path)
 		.or(article_path_get)
 		.or(article_path_post)
+		.or(search_path_get)
+		.or(search_path_post)
 		.or(article_create_get_path)
 		.or(article_create_post_path)
 		.or(articles_path);
@@ -490,6 +506,99 @@ async fn article_page(
 	}
 }
 
+
+async fn search_page_post(
+	db: Arc<Mutex<Database>>,
+	param_map: HashMap<String, String>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+	let mut db = db.lock().await;
+	log::trace!("Article update post request: {:?}", param_map);
+	let articles = db.search_articles(param_map.get("search_term_plain").unwrap_or(&"".to_string()));
+
+	fn generate_articles_list(articles: Vec<Article>) -> String {
+		let mut accumulator = String::new();
+		for article in &articles {
+			use std::fmt::Write;
+			write!(
+				accumulator,
+				"<a href=\"/article/{}\">{}</a> <span style=\"color: #BBBBBB;\">#{}</span><br>\n",
+				article.id, article.title, article.id
+			)
+			.unwrap();
+		}
+		accumulator
+	}
+
+	if let Some(articles) = articles {
+		Ok(warp::reply::html(format!(
+			r#"
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
+{}
+		</style>
+	</head>
+	<body>
+		{}
+		<div class="main_content">
+			<div class="content markdown">
+				<h2 style="margin-top: 0px;">Articles</h2>
+				<p>
+				{}
+				</p>
+			</div>
+		</div>
+	</body>
+</html>
+	"#,
+			MAIN_STYLE,
+			generate_menu(None),
+			generate_articles_list(articles)
+		)))
+	} else {
+		Ok(warp::reply::html(format!(
+			r#"
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<meta name=viewport content="width=device-width, initial-scale=1.0">
+		<meta name="description" content="">
+		<title>Redwood-wiki</title>
+		<style>
+{}
+		</style>
+	</head>
+	<body>
+		{}
+		<div class="main_content">
+			<div class="content markdown">
+				<p>
+					Could not fetch the articles.
+				</p>
+			</div>
+		</div>
+	</body>
+</html>
+	"#,
+			MAIN_STYLE,
+			generate_menu(None)
+		)))
+	}
+}
+
+async fn search_page_get(
+	db: Arc<Mutex<Database>>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+	let mut db = db.lock().await;
+	Ok(warp::reply::html(format!("foo get")))
+}
+
 //<div contenteditable="true"></div>
 //<style type=text/css>body { max-width: 800px; margin: auto; }</style>
 
@@ -703,6 +812,12 @@ fn generate_menu(article_number_opt: Option<Rowid>) -> String {
 			<div class="content">
 				{} Redwood wiki
 				<p>
+					Search:
+					<form action="/search/article" method="post">
+						<input type="text" id="search_term_plain" name="search_term_plain" value=""><input type="submit" class="editor_submit" value="Search">
+					</form>
+				</p>
+				<p>
 					Navigation:
 					<ul>
 						<li><a href="/">Home</a></li>
@@ -730,6 +845,12 @@ fn generate_menu(article_number_opt: Option<Rowid>) -> String {
 			r#"<div class="side_content">
 			<div class="content">
 				{} Redwood wiki
+				<p>
+					Search:
+					<form action="/search/article" method="post">
+						<input type="text" id="search_term_plain" name="search_term_plain" value=""><input type="submit" class="editor_submit" value="Search">
+					</form>
+				</p>
 				<p>
 					Navigation:
 					<ul>
