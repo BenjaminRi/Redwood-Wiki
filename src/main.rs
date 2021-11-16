@@ -455,7 +455,7 @@ async fn article_page(
 		{}
 		<div class="main_content">
 			<div class="content markdown">
-				<h1>{} <span style="color: #BBBBBB;">#{}</span></h1>
+				<h1>{} <span style="color: #BBBBBB;">#{}</span> <a href='../../edit/article/{}'>[edit]</a></h1>
 
 				{}
 				
@@ -469,6 +469,7 @@ async fn article_page(
 			MAIN_STYLE,
 			generate_menu(Some(article_number)),
 			&article.title,
+			article_number,
 			article_number,
 			html_output
 		)))
