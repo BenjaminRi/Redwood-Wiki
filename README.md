@@ -25,13 +25,13 @@ You probably shouldn't. I'm a single individual with way too little time on my h
 - [x] Display articles
 - [x] Create articles
 - [x] Edit articles
-- [ ] Search for article
+- [x] List all articles
+- [x] Search for article
 - [x] Markdown highlighting in article editor
-- [ ] Preview articles during editing
 - [x] Code highlighting (supports Sublime Text's default open source syntax definitions)
 - [x] Link to other articles (syntax not finalized and subject to change)
+- [ ] Preview article with temporary changes
 - [ ] Article edit history
-- [ ] List all articles
 - [ ] Categories
 - [ ] Images
 - [ ] File upload
