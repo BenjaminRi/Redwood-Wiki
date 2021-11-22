@@ -422,13 +422,11 @@ async fn article_page(
 			}
 		});
 
-		//let parser = Parser::new_ext(&article.text, options);
-
 		// Write to String buffer.
 		let mut html_output = String::new();
 		html::push_html(&mut html_output, parser);
 
-		html_output = expand_id_in_text(html_output, &mut db);
+		html_output = expand_id_in_text(html_output, &mut db); //TODO: Remove this in favor of [article:123] style references, using the broken link callback.
 
 		if html_output == "" {
 			html_output = format!("[This article is empty. Click <a href='../../edit/article/{}'>here</a> to edit it.]", article.id);
@@ -507,14 +505,17 @@ async fn article_page(
 	}
 }
 
-
 async fn search_page_post(
 	db: Arc<Mutex<Database>>,
 	param_map: HashMap<String, String>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
 	log::trace!("Article update post request: {:?}", param_map);
-	let articles = db.search_articles(param_map.get("search_term_plain").unwrap_or(&"".to_string()));
+	let articles = db.search_articles(
+		param_map
+			.get("search_term_plain")
+			.unwrap_or(&"".to_string()),
+	);
 
 	fn generate_articles_list(articles: Vec<Article>) -> String {
 		let mut accumulator = String::new();
@@ -593,9 +594,7 @@ async fn search_page_post(
 	}
 }
 
-async fn search_page_get(
-	db: Arc<Mutex<Database>>,
-) -> Result<impl warp::Reply, warp::Rejection> {
+async fn search_page_get(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
 	Ok(warp::reply::html(format!("foo get")))
 }

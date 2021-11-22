@@ -459,10 +459,15 @@ impl Database {
 
 		Some(articles)
 	}
-	
+
 	/// Search article
 	pub fn search_articles(&mut self, search_term: &str) -> Option<Vec<Article>> {
-		let search_term = format!("%{}%", str::replace(search_term, "^", "^^").replace("%", "^%").replace("_", "^_"));
+		let search_term = format!(
+			"%{}%",
+			str::replace(search_term, "^", "^^")
+				.replace("%", "^%")
+				.replace("_", "^_")
+		);
 		let mut stmt = self
 			.conn
 			.prepare("SELECT id, title, text, date_created, date_modified, revision FROM article WHERE title LIKE ? ESCAPE '^' OR text LIKE ? ESCAPE '^'")
