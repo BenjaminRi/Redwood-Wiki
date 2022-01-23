@@ -23,6 +23,10 @@ use database::Database;
 use database::DatabaseConnection;
 use database::Rowid;
 
+mod config;
+
+use config::parse_config;
+
 //https://blog.joco.dev/posts/warp_auth_server_tutorial
 
 fn rowid_from_str(link_str: &str) -> Option<Rowid> {
@@ -146,6 +150,8 @@ async fn main() {
 	let db = Arc::new(Mutex::new(db));
 	let db = warp::any().map(move || db.clone());
 
+	let config = parse_config().unwrap();
+
 	let index_path = warp::path::end().and(db.clone()).and_then(index_page);
 	let article_path_post = warp::post()
 		.and(warp::path("article"))
@@ -209,7 +215,9 @@ async fn main() {
 		.or(article_create_get_path)
 		.or(article_create_post_path)
 		.or(articles_path);
-	warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+	warp::serve(routes)
+		.run((config.network.ip, config.network.port))
+		.await;
 }
 
 async fn article_edit_page(
