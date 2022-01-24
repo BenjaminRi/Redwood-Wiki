@@ -142,15 +142,18 @@ async fn main() {
 
 	log::info!("Starting Redwood-Wiki!");
 
-	let db = DatabaseConnection::new(Path::new("./test.sqlite"), database::OpenMode::OpenOrCreate)
-		.unwrap()
-		.init()
-		.unwrap();
+	let config = parse_config().unwrap();
+
+	let db = DatabaseConnection::new(
+		&config.database.storage_location.join("wiki_db.sqlite"),
+		database::OpenMode::OpenOrCreate,
+	)
+	.unwrap()
+	.init()
+	.unwrap();
 
 	let db = Arc::new(Mutex::new(db));
 	let db = warp::any().map(move || db.clone());
-
-	let config = parse_config().unwrap();
 
 	let index_path = warp::path::end().and(db.clone()).and_then(index_page);
 	let article_path_post = warp::post()

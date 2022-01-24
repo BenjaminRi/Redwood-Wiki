@@ -7,12 +7,18 @@ use std::path::PathBuf;
 #[derive(Deserialize, Debug)]
 pub struct Config {
 	pub network: Network,
+	pub database: Database,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Network {
 	pub ip: IpAddr,
 	pub port: u16,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Database {
+	pub storage_location: PathBuf,
 }
 
 pub fn parse_config() -> std::io::Result<Config> {
