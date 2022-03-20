@@ -16,6 +16,8 @@ use tokio::sync::Mutex;
 use std::collections::HashMap;
 use std::path::Path;
 
+use regex::Regex;
+
 mod database;
 
 use database::Article;
@@ -349,6 +351,21 @@ async fn article_page_post(
 	article_page(db, article_number).await
 }
 
+fn highlight_links<'a>(string: CowStr<'a>) -> CowStr<'a> {
+	// Characters taken from
+	// https://www.ietf.org/rfc/rfc3986.txt
+	// Section 2.2. Reserved Characters
+	// Section 2.3. Unreserved Characters
+	// A-Za-z0-9-_.~:/?#[]@!$&'()*+,;=
+
+	let re = Regex::new(
+		r"(?P<p>https?)://(?P<l>[A-Za-z0-9-_\\.\\~:/\\?\\#\\[\\]@!\\$\\&'\\(\\)\\*\\+,;=]+)",
+	)
+	.unwrap();
+	let after = re.replace_all(&string, "<a href=\"$p://$l\">$p://$l</a>");
+	return CowStr::Boxed(after.into_owned().into_boxed_str());
+}
+
 async fn article_page(
 	db: Arc<Mutex<Database>>,
 	article_number: Rowid,
@@ -426,7 +443,7 @@ async fn article_page(
 						Event::Text(CowStr::Borrowed(""))
 					} else {
 						// We are in a regular text element
-						Event::Text(text)
+						Event::Html(highlight_links(text))
 					}
 				}
 				_ => event,
