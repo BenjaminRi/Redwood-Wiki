@@ -351,6 +351,75 @@ async fn article_page_post(
 	article_page(db, article_number).await
 }
 
+
+//https://github.com/raphlinus/pulldown-cmark/issues/507
+
+
+struct EventStream<'a, I> {
+	iter: I,
+	last_event: Option<Event<'a>>,
+}
+
+impl<'a, I> EventStream<'a, I>
+where
+    I: Iterator<Item = Event<'a>>,
+{
+	fn new(iter: I) -> Self {
+		Self {
+			iter,
+			last_event: None,
+		}
+	}
+}
+
+impl<'a, I> Iterator for EventStream<'a, I>
+where
+    I: Iterator<Item = Event<'a>>,
+{
+	type Item = Event<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+		match (self.last_event.take(), self.iter.next()) {
+			(Some(Event::Text(last_text)), Some(Event::Text(next_text))) => {
+				// We need to start merging consecutive text events together into one
+				let mut string_buf: String = last_text.into_string();
+				string_buf.push_str(&next_text);
+				loop {
+					// Avoid recursion to avoid stack overflow and to optimize concatenation
+					match self.iter.next() {
+						Some(Event::Text(next_text)) => {
+							string_buf.push_str(&next_text);
+						},
+						next_event => {
+							self.last_event = next_event;
+							if string_buf.is_empty() {
+								// Discard text event(s) altogether if there is no text
+								break self.next()
+							} else {
+								break Some(Event::Text(CowStr::Boxed(string_buf.into_boxed_str())));
+							}
+						}
+					}
+				}
+			},
+			(None, Some(next_event)) => {
+				// This only happens once during the first iteration and if there are items
+				self.last_event = Some(next_event);
+				self.next()
+			}
+			(None, None) => {
+				// This happens when the iterator is depleted
+				None
+			},
+			(last_event, next_event) => {
+				// The ordinary case, emit one event after the other without modification
+				self.last_event = next_event;
+				last_event
+			}
+		}
+    }
+}
+
 fn highlight_links<'a>(string: CowStr<'a>) -> CowStr<'a> {
 	// Characters taken from
 	// https://www.ietf.org/rfc/rfc3986.txt
@@ -443,12 +512,14 @@ async fn article_page(
 						Event::Text(CowStr::Borrowed(""))
 					} else {
 						// We are in a regular text element
-						Event::Html(highlight_links(text))
+						Event::Text(highlight_links(text))
 					}
 				}
 				_ => event,
 			}
 		});
+		
+		//let parser = EventStream::new(parser.into_iter());
 
 		// Write to String buffer.
 		let mut html_output = String::new();
