@@ -351,18 +351,16 @@ async fn article_page_post(
 	article_page(db, article_number).await
 }
 
-
 //https://github.com/raphlinus/pulldown-cmark/issues/507
 
-
-struct EventStream<'a, I> {
+struct TextMergeStream<'a, I> {
 	iter: I,
 	last_event: Option<Event<'a>>,
 }
 
-impl<'a, I> EventStream<'a, I>
+impl<'a, I> TextMergeStream<'a, I>
 where
-    I: Iterator<Item = Event<'a>>,
+	I: Iterator<Item = Event<'a>>,
 {
 	fn new(iter: I) -> Self {
 		Self {
@@ -372,13 +370,13 @@ where
 	}
 }
 
-impl<'a, I> Iterator for EventStream<'a, I>
+impl<'a, I> Iterator for TextMergeStream<'a, I>
 where
-    I: Iterator<Item = Event<'a>>,
+	I: Iterator<Item = Event<'a>>,
 {
 	type Item = Event<'a>;
 
-    fn next(&mut self) -> Option<Self::Item> {
+	fn next(&mut self) -> Option<Self::Item> {
 		match (self.last_event.take(), self.iter.next()) {
 			(Some(Event::Text(last_text)), Some(Event::Text(next_text))) => {
 				// We need to start merging consecutive text events together into one
@@ -389,19 +387,21 @@ where
 					match self.iter.next() {
 						Some(Event::Text(next_text)) => {
 							string_buf.push_str(&next_text);
-						},
+						}
 						next_event => {
 							self.last_event = next_event;
 							if string_buf.is_empty() {
 								// Discard text event(s) altogether if there is no text
-								break self.next()
+								break self.next();
 							} else {
-								break Some(Event::Text(CowStr::Boxed(string_buf.into_boxed_str())));
+								break Some(Event::Text(CowStr::Boxed(
+									string_buf.into_boxed_str(),
+								)));
 							}
 						}
 					}
 				}
-			},
+			}
 			(None, Some(next_event)) => {
 				// This only happens once during the first iteration and if there are items
 				self.last_event = Some(next_event);
@@ -410,15 +410,25 @@ where
 			(None, None) => {
 				// This happens when the iterator is depleted
 				None
-			},
+			}
 			(last_event, next_event) => {
 				// The ordinary case, emit one event after the other without modification
 				self.last_event = next_event;
 				last_event
 			}
 		}
-    }
+	}
 }
+
+/*let text = "Retroactively relinquishing remunerations is reprehensible.";
+for mat in Regex::new(r"\b\w{13}\b").unwrap().find_iter(text) {
+	println!("{:?}", mat);
+}*/
+
+// Text merging required to prevent link text events being sliced up:
+//<a href="https://url.com/foo">https://url.com/foo</a>[bar
+//<a href="https://url.com/foo">https://url.com/foo</a>]bar
+//<a href="https://url.com/foo">https://url.com/foo</a>*bar
 
 fn highlight_links<'a>(string: CowStr<'a>) -> CowStr<'a> {
 	// Characters taken from
@@ -427,10 +437,8 @@ fn highlight_links<'a>(string: CowStr<'a>) -> CowStr<'a> {
 	// Section 2.3. Unreserved Characters
 	// A-Za-z0-9-_.~:/?#[]@!$&'()*+,;=
 
-	let re = Regex::new(
-		r"(?P<p>https?)://(?P<l>[A-Za-z0-9-_\\.\\~:/\\?\\#\\[\\]@!\\$\\&'\\(\\)\\*\\+,;=]+)",
-	)
-	.unwrap();
+	let re = Regex::new(r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)")
+		.unwrap();
 	let after = re.replace_all(&string, "<a href=\"$p://$l\">$p://$l</a>");
 	return CowStr::Boxed(after.into_owned().into_boxed_str());
 }
@@ -468,7 +476,7 @@ async fn article_page(
 
 		let parser = Parser::new_with_broken_link_callback(&article.text, options, Some(&mut callback)).map(|event| {*/
 
-		let parser = Parser::new_ext(&article.text, options).map(|event| {
+		let parser = TextMergeStream::new(Parser::new_ext(&article.text, options)).map(|event| {
 			//println!("Text: {:?}", &event);
 			match event {
 				Event::Start(Tag::CodeBlock(language)) => {
@@ -518,8 +526,8 @@ async fn article_page(
 				_ => event,
 			}
 		});
-		
-		//let parser = EventStream::new(parser.into_iter());
+
+		//let parser = TextMergeStream::new(parser.into_iter());
 
 		// Write to String buffer.
 		let mut html_output = String::new();
