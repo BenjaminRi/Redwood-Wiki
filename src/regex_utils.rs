@@ -115,15 +115,58 @@ mod tests {
 	fn test_partition() {
 		let regex = Regex::new(r"-*").unwrap();
 		assert_eq!(regex.partition("").collect::<Vec<_>>(), vec![]);
-		assert_eq!(regex.partition("---").collect::<Vec<_>>(), vec![Part::Match("---")]);
-		assert_eq!(regex.partition("a---").collect::<Vec<_>>(), vec![Part::NoMatch("a"), Part::Match("---")]);
-		assert_eq!(regex.partition("---a").collect::<Vec<_>>(), vec![Part::Match("---"), Part::NoMatch("a")]);
-		assert_eq!(regex.partition("a---b").collect::<Vec<_>>(), vec![Part::NoMatch("a"), Part::Match("---"), Part::NoMatch("b")]);
-		assert_eq!(regex.partition("---b--").collect::<Vec<_>>(), vec![Part::Match("---"), Part::NoMatch("b"), Part::Match("--")]);
-		assert_eq!(regex.partition("a---b--").collect::<Vec<_>>(), vec![Part::NoMatch("a"), Part::Match("---"), Part::NoMatch("b"), Part::Match("--")]);
-		assert_eq!(regex.partition("---a--b").collect::<Vec<_>>(), vec![Part::Match("---"), Part::NoMatch("a"), Part::Match("--"), Part::NoMatch("b")]);
-		assert_eq!(regex.partition("a---b--c").collect::<Vec<_>>(), vec![Part::NoMatch("a"), Part::Match("---"), Part::NoMatch("b"), Part::Match("--"), Part::NoMatch("c")]);
+		assert_eq!(
+			regex.partition("---").collect::<Vec<_>>(),
+			vec![Part::Match("---")]
+		);
+		assert_eq!(
+			regex.partition("a---").collect::<Vec<_>>(),
+			vec![Part::NoMatch("a"), Part::Match("---")]
+		);
+		assert_eq!(
+			regex.partition("---a").collect::<Vec<_>>(),
+			vec![Part::Match("---"), Part::NoMatch("a")]
+		);
+		assert_eq!(
+			regex.partition("a---b").collect::<Vec<_>>(),
+			vec![Part::NoMatch("a"), Part::Match("---"), Part::NoMatch("b")]
+		);
+		assert_eq!(
+			regex.partition("---b--").collect::<Vec<_>>(),
+			vec![Part::Match("---"), Part::NoMatch("b"), Part::Match("--")]
+		);
+		assert_eq!(
+			regex.partition("a---b--").collect::<Vec<_>>(),
+			vec![
+				Part::NoMatch("a"),
+				Part::Match("---"),
+				Part::NoMatch("b"),
+				Part::Match("--")
+			]
+		);
+		assert_eq!(
+			regex.partition("---a--b").collect::<Vec<_>>(),
+			vec![
+				Part::Match("---"),
+				Part::NoMatch("a"),
+				Part::Match("--"),
+				Part::NoMatch("b")
+			]
+		);
+		assert_eq!(
+			regex.partition("a---b--c").collect::<Vec<_>>(),
+			vec![
+				Part::NoMatch("a"),
+				Part::Match("---"),
+				Part::NoMatch("b"),
+				Part::Match("--"),
+				Part::NoMatch("c")
+			]
+		);
 		let regex = Regex::new(r"foo|bar").unwrap();
-		assert_eq!(regex.partition("foobar").collect::<Vec<_>>(), vec![Part::Match("foo"), Part::Match("bar")]);
+		assert_eq!(
+			regex.partition("foobar").collect::<Vec<_>>(),
+			vec![Part::Match("foo"), Part::Match("bar")]
+		);
 	}
 }
