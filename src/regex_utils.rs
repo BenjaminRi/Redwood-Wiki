@@ -16,6 +16,15 @@ pub enum Part<'t> {
 	Match(&'t str),
 }
 
+impl<'t> Part<'t> {
+	pub fn as_str(&self) -> &'t str {
+		match &self {
+			Part::NoMatch(text) => text,
+			Part::Match(text) => text,
+		}
+	}
+}
+
 #[derive(Debug)]
 enum TextMatchState<'t> {
 	Init,
