@@ -1,12 +1,11 @@
-use regex::Match;
-use regex::Regex;
+use regex::{Match, Matches, Regex};
 
 pub trait DoPartition<'r, 't> {
-	fn partition(&'r self, text: &'t str) -> Partition<'t, regex::Matches<'r, 't>>;
+	fn partition(&'r self, text: &'t str) -> Partition<'r, 't>;
 }
 
 impl<'r, 't> DoPartition<'r, 't> for Regex {
-	fn partition(&'r self, text: &'t str) -> Partition<'t, regex::Matches<'r, 't>> {
+	fn partition(&'r self, text: &'t str) -> Partition<'r, 't> {
 		Partition::new(self.find_iter(text), text)
 	}
 }
@@ -25,17 +24,14 @@ enum TextMatchState<'t> {
 	Done,
 }
 
-pub struct Partition<'t, I> {
-	iter: I,
+pub struct Partition<'r, 't> {
+	iter: regex::Matches<'r, 't>,
 	text: &'t str,
 	state: TextMatchState<'t>,
 }
 
-impl<'t, I> Partition<'t, I>
-where
-	I: Iterator<Item = Match<'t>>,
-{
-	pub fn new(iter: I, text: &'t str) -> Self {
+impl<'r, 't> Partition<'r, 't> {
+	pub fn new(iter: regex::Matches<'r, 't>, text: &'t str) -> Self {
 		Self {
 			iter,
 			text,
@@ -44,10 +40,7 @@ where
 	}
 }
 
-impl<'t, I> Iterator for Partition<'t, I>
-where
-	I: Iterator<Item = Match<'t>>,
-{
+impl<'r, 't> Iterator for Partition<'r, 't> {
 	type Item = Part<'t>;
 
 	fn next(&mut self) -> Option<Self::Item> {
