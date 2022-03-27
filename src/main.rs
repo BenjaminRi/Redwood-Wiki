@@ -14,20 +14,24 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use std::collections::HashMap;
-use std::path::Path;
 
 use regex::Regex;
 
 mod database;
 
-use database::Article;
-use database::Database;
-use database::DatabaseConnection;
-use database::Rowid;
+use database::{Article, Database, DatabaseConnection, Rowid};
 
 mod config;
 
 use config::parse_config;
+
+mod regex_utils;
+
+use regex_utils::{DoPartition, Part};
+
+mod markdown_utils;
+
+use markdown_utils::TextMergeStream;
 
 //https://blog.joco.dev/posts/warp_auth_server_tutorial
 
@@ -346,90 +350,98 @@ async fn article_page_post(
 			article_number,
 			param_map.get("article_title").map(|a| -> &str { a }),
 			param_map.get("article_text").map(|a| -> &str { a }),
-		); //TODO: Two None parameters here lead to error, handle it
+		)
+		.unwrap(); //TODO: Two None parameters here lead to error, handle it
 	}
 	article_page(db, article_number).await
 }
 
-//https://github.com/raphlinus/pulldown-cmark/issues/507
+//----------------------------------------------------------------
 
-struct TextMergeStream<'a, I> {
-	iter: I,
-	last_event: Option<Event<'a>>,
+struct CowStrMatches<'r, 'a> {
+	text: CowStr<'a>,
+	matches: Option<regex_utils::Partition<'r, 'a>>,
 }
 
-impl<'a, I> TextMergeStream<'a, I>
+impl<'r, 'a> CowStrMatches<'r, 'a> {
+	fn new(text: CowStr<'a>, regex: &'r Regex) -> Self {
+		let mut result = Self {
+			text,
+			matches: None,
+		};
+		unsafe {
+			//Due to the fact that matches references text and both are in the same struct,
+			//this cannot be done in safe Rust
+			result.matches = Some(std::mem::transmute::<
+				regex_utils::Partition<'r, '_>,
+				regex_utils::Partition<'r, 'a>,
+			>(regex.partition(&result.text)));
+		}
+
+		result
+	}
+}
+
+struct LinkHighlightStream<'a, 'r, I> {
+	iter: I,
+	matches: Option<CowStrMatches<'r, 'a>>,
+	regex: &'r Regex,
+}
+
+impl<'a, 'r, I> LinkHighlightStream<'a, 'r, I>
 where
 	I: Iterator<Item = Event<'a>>,
 {
-	fn new(iter: I) -> Self {
+	fn new(iter: I, regex: &'r Regex) -> Self {
 		Self {
 			iter,
-			last_event: None,
+			matches: None,
+			regex,
 		}
 	}
 }
 
-impl<'a, I> Iterator for TextMergeStream<'a, I>
+impl<'a, 'r, I> Iterator for LinkHighlightStream<'a, 'r, I>
 where
 	I: Iterator<Item = Event<'a>>,
 {
 	type Item = Event<'a>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		match (self.last_event.take(), self.iter.next()) {
-			(Some(Event::Text(last_text)), Some(Event::Text(next_text))) => {
-				// We need to start merging consecutive text events together into one
-				let mut string_buf: String = last_text.into_string();
-				string_buf.push_str(&next_text);
-				loop {
-					// Avoid recursion to avoid stack overflow and to optimize concatenation
-					match self.iter.next() {
-						Some(Event::Text(next_text)) => {
-							string_buf.push_str(&next_text);
-						}
-						next_event => {
-							self.last_event = next_event;
-							if string_buf.is_empty() {
-								// Discard text event(s) altogether if there is no text
-								break self.next();
-							} else {
-								break Some(Event::Text(CowStr::Boxed(
-									string_buf.into_boxed_str(),
-								)));
-							}
-						}
+		if let Some(matches) = &mut self.matches {
+			let next_match = matches.matches.as_mut().unwrap().next();
+			//println!("{:?}", next_match);
+			if let Some(next_match) = next_match {
+				match next_match {
+					Part::NoMatch(text) => {
+						return Some(Event::Text(CowStr::Borrowed(text)));
+					}
+					Part::Match(text) => {
+						let html = format!("<a href=\"{}\">{}</a>", text, text);
+						return Some(Event::Html(CowStr::Boxed(html.into_boxed_str())));
 					}
 				}
 			}
-			(None, Some(next_event)) => {
-				// This only happens once during the first iteration and if there are items
-				self.last_event = Some(next_event);
+		}
+
+		match self.iter.next() {
+			Some(Event::Text(next_text)) => {
+				// We found a text event, apply link replacement
+				//*self.last_text = Some(next_text);
+				self.matches = Some(CowStrMatches::new(next_text, self.regex));
 				self.next()
 			}
-			(None, None) => {
-				// This happens when the iterator is depleted
-				None
-			}
-			(last_event, next_event) => {
-				// The ordinary case, emit one event after the other without modification
-				self.last_event = next_event;
-				last_event
-			}
+			next_event => next_event,
 		}
 	}
 }
-
-/*let text = "Retroactively relinquishing remunerations is reprehensible.";
-for mat in Regex::new(r"\b\w{13}\b").unwrap().find_iter(text) {
-	println!("{:?}", mat);
-}*/
 
 // Text merging required to prevent link text events being sliced up:
 //<a href="https://url.com/foo">https://url.com/foo</a>[bar
 //<a href="https://url.com/foo">https://url.com/foo</a>]bar
 //<a href="https://url.com/foo">https://url.com/foo</a>*bar
 
+#[allow(dead_code)]
 fn highlight_links<'a>(string: CowStr<'a>) -> CowStr<'a> {
 	// Characters taken from
 	// https://www.ietf.org/rfc/rfc3986.txt
@@ -452,12 +464,12 @@ async fn article_page(
 	if let Some(article) = db.get_article(article_number) {
 		let mut css_str = String::new();
 		let ts = syntect::highlighting::ThemeSet::load_defaults();
-		for (key, theme) in ts.themes {
+		for (_key, theme) in ts.themes {
 			let css = syntect::html::css_for_theme_with_class_style(
 				&theme,
 				syntect::html::ClassStyle::Spaced,
 			);
-			//println!("{}.css - {}", key, css);
+			//println!("{}.css - {}", _key, css);
 			css_str = css;
 			break;
 		}
@@ -476,6 +488,9 @@ async fn article_page(
 
 		let parser = Parser::new_with_broken_link_callback(&article.text, options, Some(&mut callback)).map(|event| {*/
 
+		let regex =
+			Regex::new(r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)")
+				.unwrap();
 		let parser = TextMergeStream::new(Parser::new_ext(&article.text, options)).map(|event| {
 			//println!("Text: {:?}", &event);
 			match event {
@@ -520,14 +535,14 @@ async fn article_page(
 						Event::Text(CowStr::Borrowed(""))
 					} else {
 						// We are in a regular text element
-						Event::Text(highlight_links(text))
+						Event::Text(text)
 					}
 				}
 				_ => event,
 			}
 		});
 
-		//let parser = TextMergeStream::new(parser.into_iter());
+		let parser = LinkHighlightStream::new(parser.into_iter(), &regex);
 
 		// Write to String buffer.
 		let mut html_output = String::new();
@@ -702,15 +717,18 @@ async fn search_page_post(
 }
 
 async fn search_page_get(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::Rejection> {
-	let mut db = db.lock().await;
-	Ok(warp::reply::html(format!("foo get")))
+	let mut _db = db.lock().await;
+	//TODO: Add search page
+	Ok(warp::reply::html(format!(
+		"Search page not yet implemented"
+	)))
 }
 
 //<div contenteditable="true"></div>
 //<style type=text/css>body { max-width: 800px; margin: auto; }</style>
 
 async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::Rejection> {
-	let db = db.lock().await;
+	let _db = db.lock().await;
 	Ok(warp::reply::html(format!(
 		r#"
 <!DOCTYPE html>

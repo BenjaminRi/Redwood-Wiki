@@ -1,4 +1,4 @@
-use regex::{Match, Matches, Regex};
+use regex::Regex;
 
 pub trait DoPartition<'r, 't> {
 	fn partition(&'r self, text: &'t str) -> Partition<'r, 't>;
@@ -17,6 +17,7 @@ pub enum Part<'t> {
 }
 
 impl<'t> Part<'t> {
+	#[allow(dead_code)]
 	pub fn as_str(&self) -> &'t str {
 		match &self {
 			Part::NoMatch(text) => text,
@@ -28,8 +29,8 @@ impl<'t> Part<'t> {
 #[derive(Debug)]
 enum TextMatchState<'t> {
 	Init,
-	Intra(Match<'t>),
-	Post(Match<'t>),
+	Intra(regex::Match<'t>),
+	Post(regex::Match<'t>),
 	Done,
 }
 
