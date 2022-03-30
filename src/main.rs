@@ -358,33 +358,9 @@ async fn article_page_post(
 
 //----------------------------------------------------------------
 
-struct CowStrMatches<'r, 'a> {
-	text: CowStr<'a>,
-	matches: Option<regex_utils::Partition<'r, 'a>>,
-}
-
-impl<'r, 'a> CowStrMatches<'r, 'a> {
-	fn new(text: CowStr<'a>, regex: &'r Regex) -> Self {
-		let mut result = Self {
-			text,
-			matches: None,
-		};
-		unsafe {
-			//Due to the fact that matches references text and both are in the same struct,
-			//this cannot be done in safe Rust
-			result.matches = Some(std::mem::transmute::<
-				regex_utils::Partition<'r, '_>,
-				regex_utils::Partition<'r, 'a>,
-			>(regex.partition(&result.text)));
-		}
-
-		result
-	}
-}
-
 struct LinkHighlightStream<'a, 'r, I> {
 	iter: I,
-	matches: Option<CowStrMatches<'r, 'a>>,
+	inject_event: Vec<Event<'a>>,
 	regex: &'r Regex,
 }
 
@@ -395,7 +371,7 @@ where
 	fn new(iter: I, regex: &'r Regex) -> Self {
 		Self {
 			iter,
-			matches: None,
+			inject_event: vec![],
 			regex,
 		}
 	}
@@ -408,27 +384,32 @@ where
 	type Item = Event<'a>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if let Some(matches) = &mut self.matches {
-			let next_match = matches.matches.as_mut().unwrap().next();
-			//println!("{:?}", next_match);
-			if let Some(next_match) = next_match {
-				match next_match {
-					Part::NoMatch(text) => {
-						return Some(Event::Text(CowStr::Borrowed(text)));
-					}
-					Part::Match(text) => {
-						let html = format!("<a href=\"{}\">{}</a>", text, text);
-						return Some(Event::Html(CowStr::Boxed(html.into_boxed_str())));
-					}
-				}
-			}
+		if !self.inject_event.is_empty() {
+			return self.inject_event.pop();
 		}
 
 		match self.iter.next() {
 			Some(Event::Text(next_text)) => {
 				// We found a text event, apply link replacement
-				//*self.last_text = Some(next_text);
-				self.matches = Some(CowStrMatches::new(next_text, self.regex));
+				// Note: This is inefficient in two ways:
+				// 1. If the regex does not match, we could just straight emit the event
+				//    and skip all this vector and to_string() stuff altogether.
+				// 2. We could skip the vector collect(), reverse(), etc. entirely if we
+				//    could solve the lifetime problem of keeping the Partition iterator around
+				self.inject_event = self
+					.regex
+					.partition(&next_text)
+					.map(|mat| match mat {
+						Part::NoMatch(text) => {
+							Event::Text(CowStr::Boxed(text.to_string().into_boxed_str()))
+						}
+						Part::Match(text) => {
+							let html = format!("<a href=\"{}\">{}</a>", text, text);
+							Event::Html(CowStr::Boxed(html.into_boxed_str()))
+						}
+					})
+					.collect();
+				self.inject_event.reverse();
 				self.next()
 			}
 			next_event => next_event,
