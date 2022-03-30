@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate lazy_static;
+
 use warp::Filter;
 
 use chrono;
@@ -358,26 +361,24 @@ async fn article_page_post(
 
 //----------------------------------------------------------------
 
-struct LinkHighlightStream<'a, 'r, I> {
+struct LinkHighlightStream<'a, I> {
 	iter: I,
 	inject_event: VecDeque<Event<'a>>,
-	regex: &'r Regex,
 }
 
-impl<'a, 'r, I> LinkHighlightStream<'a, 'r, I>
+impl<'a, I> LinkHighlightStream<'a, I>
 where
 	I: Iterator<Item = Event<'a>>,
 {
-	fn new(iter: I, regex: &'r Regex) -> Self {
+	fn new(iter: I) -> Self {
 		Self {
 			iter,
 			inject_event: VecDeque::new(),
-			regex,
 		}
 	}
 }
 
-impl<'a, 'r, I> Iterator for LinkHighlightStream<'a, 'r, I>
+impl<'a, I> Iterator for LinkHighlightStream<'a, I>
 where
 	I: Iterator<Item = Event<'a>>,
 {
@@ -396,8 +397,14 @@ where
 				//    and skip all this vector and to_string() stuff altogether.
 				// 2. We could skip the VecDeque collect(), pop_front(), etc. entirely if we
 				//    could solve the lifetime problem of keeping the Partition iterator around
-				self.inject_event = self
-					.regex
+				lazy_static! {
+					static ref LINK_REGEX: Regex = Regex::new(
+						r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)"
+					)
+					.unwrap();
+				}
+
+				self.inject_event = LINK_REGEX
 					.partition(&next_text)
 					.map(|mat| match mat {
 						Part::NoMatch(text) => {
@@ -468,9 +475,6 @@ async fn article_page(
 
 		let parser = Parser::new_with_broken_link_callback(&article.text, options, Some(&mut callback)).map(|event| {*/
 
-		let regex =
-			Regex::new(r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)")
-				.unwrap();
 		let parser = TextMergeStream::new(Parser::new_ext(&article.text, options)).map(|event| {
 			//println!("Text: {:?}", &event);
 			match event {
@@ -522,7 +526,7 @@ async fn article_page(
 			}
 		});
 
-		let parser = LinkHighlightStream::new(parser.into_iter(), &regex);
+		let parser = LinkHighlightStream::new(parser.into_iter());
 
 		// Write to String buffer.
 		let mut html_output = String::new();

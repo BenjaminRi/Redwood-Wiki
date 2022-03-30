@@ -791,6 +791,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "fern",
+ "lazy_static",
  "log",
  "pulldown-cmark",
  "regex",
