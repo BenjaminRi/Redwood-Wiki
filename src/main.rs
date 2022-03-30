@@ -13,7 +13,7 @@ use warp::Reply;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use regex::Regex;
 
@@ -360,7 +360,7 @@ async fn article_page_post(
 
 struct LinkHighlightStream<'a, 'r, I> {
 	iter: I,
-	inject_event: Vec<Event<'a>>,
+	inject_event: VecDeque<Event<'a>>,
 	regex: &'r Regex,
 }
 
@@ -371,7 +371,7 @@ where
 	fn new(iter: I, regex: &'r Regex) -> Self {
 		Self {
 			iter,
-			inject_event: vec![],
+			inject_event: VecDeque::new(),
 			regex,
 		}
 	}
@@ -385,7 +385,7 @@ where
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if !self.inject_event.is_empty() {
-			return self.inject_event.pop();
+			return self.inject_event.pop_front();
 		}
 
 		match self.iter.next() {
@@ -394,7 +394,7 @@ where
 				// Note: This is inefficient in two ways:
 				// 1. If the regex does not match, we could just straight emit the event
 				//    and skip all this vector and to_string() stuff altogether.
-				// 2. We could skip the vector collect(), reverse(), etc. entirely if we
+				// 2. We could skip the VecDeque collect(), pop_front(), etc. entirely if we
 				//    could solve the lifetime problem of keeping the Partition iterator around
 				self.inject_event = self
 					.regex
@@ -409,7 +409,6 @@ where
 						}
 					})
 					.collect();
-				self.inject_event.reverse();
 				self.next()
 			}
 			next_event => next_event,
