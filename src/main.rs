@@ -6,7 +6,7 @@ use warp::Filter;
 use chrono;
 use chrono::Utc;
 
-use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
+use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag};
 
 use syntect::html::{ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::SyntaxSet;
@@ -397,6 +397,12 @@ where
 				//    and skip all this vector and to_string() stuff altogether.
 				// 2. We could skip the VecDeque collect(), pop_front(), etc. entirely if we
 				//    could solve the lifetime problem of keeping the Partition iterator around
+
+				// Regex to find links: Characters taken from
+				// https://www.ietf.org/rfc/rfc3986.txt
+				// Section 2.2. Reserved Characters
+				// Section 2.3. Unreserved Characters
+				// A-Za-z0-9-_.~:/?#[]@!$&'()*+,;=
 				lazy_static! {
 					static ref LINK_REGEX: Regex = Regex::new(
 						r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)"
@@ -406,14 +412,25 @@ where
 
 				self.inject_event = LINK_REGEX
 					.partition(&next_text)
-					.map(|mat| match mat {
-						Part::NoMatch(text) => {
-							Event::Text(CowStr::Boxed(text.to_string().into_boxed_str()))
-						}
-						Part::Match(text) => {
-							let html = format!("<a href=\"{}\">{}</a>", text, text);
-							Event::Html(CowStr::Boxed(html.into_boxed_str()))
-						}
+					.flat_map(|mat| match mat {
+						Part::NoMatch(text) => vec![Event::Text(CowStr::Boxed(
+							text.to_string().into_boxed_str(),
+						))]
+						.into_iter(),
+						Part::Match(text) => vec![
+							Event::Start(Tag::Link(
+								LinkType::Autolink,
+								CowStr::Boxed(text.to_string().into_boxed_str()),
+								CowStr::Borrowed(""),
+							)),
+							Event::Text(CowStr::Boxed(text.to_string().into_boxed_str())),
+							Event::End(Tag::Link(
+								LinkType::Autolink,
+								CowStr::Boxed(text.to_string().into_boxed_str()),
+								CowStr::Borrowed(""),
+							)),
+						]
+						.into_iter(),
 					})
 					.collect();
 				self.next()
@@ -427,20 +444,6 @@ where
 //<a href="https://url.com/foo">https://url.com/foo</a>[bar
 //<a href="https://url.com/foo">https://url.com/foo</a>]bar
 //<a href="https://url.com/foo">https://url.com/foo</a>*bar
-
-#[allow(dead_code)]
-fn highlight_links<'a>(string: CowStr<'a>) -> CowStr<'a> {
-	// Characters taken from
-	// https://www.ietf.org/rfc/rfc3986.txt
-	// Section 2.2. Reserved Characters
-	// Section 2.3. Unreserved Characters
-	// A-Za-z0-9-_.~:/?#[]@!$&'()*+,;=
-
-	let re = Regex::new(r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)")
-		.unwrap();
-	let after = re.replace_all(&string, "<a href=\"$p://$l\">$p://$l</a>");
-	return CowStr::Boxed(after.into_owned().into_boxed_str());
-}
 
 async fn article_page(
 	db: Arc<Mutex<Database>>,
