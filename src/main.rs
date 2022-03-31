@@ -1,40 +1,31 @@
 #[macro_use]
 extern crate lazy_static;
 
-use warp::Filter;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use chrono;
 use chrono::Utc;
 
-use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag};
+use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 
 use syntect::html::{ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::SyntaxSet;
 
-use warp::Reply;
-
-use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use std::collections::{HashMap, VecDeque};
-
-use regex::Regex;
+use warp::{Filter, Reply};
 
 mod database;
-
 use database::{Article, Database, DatabaseConnection, Rowid};
 
 mod config;
-
 use config::parse_config;
 
-mod regex_utils;
-
-use regex_utils::{DoPartition, Part};
-
 mod markdown_utils;
+use markdown_utils::{LinkHighlightStream, TextMergeStream};
 
-use markdown_utils::TextMergeStream;
+mod regex_utils;
 
 //https://blog.joco.dev/posts/warp_auth_server_tutorial
 
@@ -358,92 +349,6 @@ async fn article_page_post(
 	}
 	article_page(db, article_number).await
 }
-
-//----------------------------------------------------------------
-
-struct LinkHighlightStream<'a, I> {
-	iter: I,
-	inject_event: VecDeque<Event<'a>>,
-}
-
-impl<'a, I> LinkHighlightStream<'a, I>
-where
-	I: Iterator<Item = Event<'a>>,
-{
-	fn new(iter: I) -> Self {
-		Self {
-			iter,
-			inject_event: VecDeque::new(),
-		}
-	}
-}
-
-impl<'a, I> Iterator for LinkHighlightStream<'a, I>
-where
-	I: Iterator<Item = Event<'a>>,
-{
-	type Item = Event<'a>;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		if !self.inject_event.is_empty() {
-			return self.inject_event.pop_front();
-		}
-
-		match self.iter.next() {
-			Some(Event::Text(next_text)) => {
-				// We found a text event, apply link replacement
-				// Note: This is inefficient in two ways:
-				// 1. If the regex does not match, we could just straight emit the event
-				//    and skip all this vector and to_string() stuff altogether.
-				// 2. We could skip the VecDeque collect(), pop_front(), etc. entirely if we
-				//    could solve the lifetime problem of keeping the Partition iterator around
-
-				// Regex to find links: Characters taken from
-				// https://www.ietf.org/rfc/rfc3986.txt
-				// Section 2.2. Reserved Characters
-				// Section 2.3. Unreserved Characters
-				// A-Za-z0-9-_.~:/?#[]@!$&'()*+,;=
-				lazy_static! {
-					static ref LINK_REGEX: Regex = Regex::new(
-						r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)"
-					)
-					.unwrap();
-				}
-
-				self.inject_event = LINK_REGEX
-					.partition(&next_text)
-					.flat_map(|mat| match mat {
-						Part::NoMatch(text) => vec![Event::Text(CowStr::Boxed(
-							text.to_string().into_boxed_str(),
-						))]
-						.into_iter(),
-						Part::Match(text) => vec![
-							Event::Start(Tag::Link(
-								LinkType::Autolink,
-								CowStr::Boxed(text.to_string().into_boxed_str()),
-								CowStr::Borrowed(""),
-							)),
-							Event::Text(CowStr::Boxed(text.to_string().into_boxed_str())),
-							Event::End(Tag::Link(
-								LinkType::Autolink,
-								CowStr::Boxed(text.to_string().into_boxed_str()),
-								CowStr::Borrowed(""),
-							)),
-						]
-						.into_iter(),
-					})
-					.collect();
-				self.next()
-			}
-			next_event => next_event,
-		}
-	}
-}
-
-// Text merging required to prevent link text events being sliced up:
-//<a href="https://url.com/foo">https://url.com/foo</a>[bar
-//<a href="https://url.com/foo">https://url.com/foo</a>]bar
-//<a href="https://url.com/foo">https://url.com/foo</a>*bar
 
 async fn article_page(
 	db: Arc<Mutex<Database>>,
