@@ -341,5 +341,33 @@ mod tests {
 				.into_iter())
 				.collect::<Vec<Event<'_>>>()
 		);
+
+		let protocol_urls = vec!["http://www.example.com", "https://www.example.com"];
+		assert_eq!(
+			LinkHighlightStream::new(
+				protocol_urls
+					.iter()
+					.map(|text| Event::Text(CowStr::Borrowed(text)))
+					.into_iter()
+			)
+			.collect::<Vec<Event<'_>>>(),
+			protocol_urls
+				.iter()
+				.flat_map(|text| vec![
+					Event::Start(Tag::Link(
+						LinkType::Autolink,
+						CowStr::Boxed(text.to_string().into_boxed_str()),
+						CowStr::Borrowed(""),
+					)),
+					Event::Text(CowStr::Boxed(text.to_string().into_boxed_str())),
+					Event::End(Tag::Link(
+						LinkType::Autolink,
+						CowStr::Boxed(text.to_string().into_boxed_str()),
+						CowStr::Borrowed(""),
+					)),
+				]
+				.into_iter())
+				.collect::<Vec<Event<'_>>>()
+		);
 	}
 }
