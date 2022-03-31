@@ -69,3 +69,85 @@ where
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_text_merge() {
+		assert_eq!(
+			TextMergeStream::new(vec![].into_iter()).collect::<Vec<Event<'_>>>(),
+			vec![]
+		);
+		assert_eq!(
+			TextMergeStream::new(vec![Event::Text(CowStr::Borrowed("foo"))].into_iter())
+				.collect::<Vec<Event<'_>>>(),
+			vec![Event::Text(CowStr::Borrowed("foo"))]
+		);
+		assert_eq!(
+			TextMergeStream::new(
+				vec![
+					Event::Text(CowStr::Borrowed("foo")),
+					Event::Text(CowStr::Borrowed("bar"))
+				]
+				.into_iter()
+			)
+			.collect::<Vec<Event<'_>>>(),
+			vec![Event::Text(CowStr::Borrowed("foobar"))]
+		);
+
+		assert_eq!(
+			TextMergeStream::new(
+				vec![
+					Event::Text(CowStr::Borrowed("foo")),
+					Event::HardBreak,
+					Event::Text(CowStr::Borrowed("bar"))
+				]
+				.into_iter()
+			)
+			.collect::<Vec<Event<'_>>>(),
+			vec![
+				Event::Text(CowStr::Borrowed("foo")),
+				Event::HardBreak,
+				Event::Text(CowStr::Borrowed("bar"))
+			]
+		);
+
+		assert_eq!(
+			TextMergeStream::new(
+				vec![
+					Event::Text(CowStr::Borrowed("foo")),
+					Event::HardBreak,
+					Event::Text(CowStr::Borrowed("bar")),
+					Event::Text(CowStr::Borrowed("baz"))
+				]
+				.into_iter()
+			)
+			.collect::<Vec<Event<'_>>>(),
+			vec![
+				Event::Text(CowStr::Borrowed("foo")),
+				Event::HardBreak,
+				Event::Text(CowStr::Borrowed("barbaz"))
+			]
+		);
+
+		assert_eq!(
+			TextMergeStream::new(
+				vec![
+					Event::Text(CowStr::Borrowed("foo")),
+					Event::Text(CowStr::Borrowed("bar")),
+					Event::HardBreak,
+					Event::Text(CowStr::Borrowed("baz"))
+				]
+				.into_iter()
+			)
+			.collect::<Vec<Event<'_>>>(),
+			vec![
+				Event::Text(CowStr::Borrowed("foobar")),
+				Event::HardBreak,
+				Event::Text(CowStr::Borrowed("baz"))
+			]
+		);
+	}
+}
