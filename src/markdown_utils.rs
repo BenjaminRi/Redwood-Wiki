@@ -161,6 +161,73 @@ where
 	}
 }
 
+pub type UnknownRefCallback<'a, 'b> = &'b mut dyn FnMut(&mut VecDeque<Event<'a>>, &str, &str, &str);
+
+pub struct UnknownRefHandlingStream<'a, 'b, I> {
+	iter: I,
+	inject_event: VecDeque<Event<'a>>,
+	ref_handler: UnknownRefCallback<'a, 'b>,
+}
+
+impl<'a, 'b, 'c, I> UnknownRefHandlingStream<'a, 'b, I>
+where
+	I: Iterator<Item = Event<'a>>,
+{
+	pub fn new(iter: I, ref_handler: UnknownRefCallback<'a, 'b>) -> Self {
+		Self {
+			iter,
+			inject_event: VecDeque::new(),
+			ref_handler,
+		}
+	}
+}
+
+impl<'a, 'b, I> Iterator for UnknownRefHandlingStream<'a, 'b, I>
+where
+	I: Iterator<Item = Event<'a>>,
+{
+	type Item = Event<'a>;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		if !self.inject_event.is_empty() {
+			return self.inject_event.pop_front();
+		}
+
+		match self.iter.next() {
+			Some(Event::Start(Tag::Link(LinkType::ShortcutUnknown, link_url, link_title))) => {
+				match self.iter.next() {
+					Some(Event::Text(text)) => {
+						// Link text found
+						(self.ref_handler)(&mut self.inject_event, &link_url, &link_title, &text);
+					}
+					Some(Event::End(Tag::Link(LinkType::ShortcutUnknown, _, _))) => {
+						// No link text? Link end without any contents??
+					}
+					_ => {
+						// No link text? No link end? Ignore stray event.
+					}
+				}
+				loop {
+					match self.iter.next() {
+						Some(Event::End(Tag::Link(LinkType::ShortcutUnknown, _, _))) => {
+							break;
+						}
+						None => {
+							break;
+						}
+						_ => {
+							// Ignore all other events between start and end
+							continue;
+						}
+					}
+				}
+				self.next()
+			}
+			next_evt => next_evt,
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

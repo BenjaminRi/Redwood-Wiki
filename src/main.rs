@@ -1,13 +1,13 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use chrono;
 use chrono::Utc;
 
-use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, Options, Parser, Tag};
+use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag};
 
 use syntect::html::{ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::SyntaxSet;
@@ -23,82 +23,11 @@ mod config;
 use config::parse_config;
 
 mod markdown_utils;
-use markdown_utils::{LinkHighlightStream, TextMergeStream};
+use markdown_utils::{LinkHighlightStream, TextMergeStream, UnknownRefHandlingStream};
 
 mod regex_utils;
 
 //https://blog.joco.dev/posts/warp_auth_server_tutorial
-
-fn rowid_from_str(link_str: &str) -> Option<Rowid> {
-	link_str
-		.strip_prefix("id:")
-		.map_or(None, |id_str| id_str.parse::<Rowid>().ok())
-}
-
-fn expand_id_in_text(text: String, db: &mut Database) -> String {
-	enum ParserState {
-		Init,
-		MatchPrefix1,        //i
-		MatchPrefix2,        //id
-		MatchRowid(Vec<u8>), //id:
-	}
-
-	//Add some additional capacity in case we do actually need to expand some IDs
-	let mut str_buf: Vec<u8> = Vec::with_capacity(text.len() + 256);
-
-	let mut parser_state = ParserState::Init;
-	for ascii_char in text.bytes() {
-		match parser_state {
-			ParserState::Init => {
-				if ascii_char != b'i' {
-					str_buf.push(ascii_char);
-				} else {
-					parser_state = ParserState::MatchPrefix1;
-				}
-			}
-			ParserState::MatchPrefix1 => {
-				if ascii_char != b'd' {
-					str_buf.extend_from_slice(b"i");
-					str_buf.push(ascii_char);
-					parser_state = ParserState::Init;
-				} else {
-					parser_state = ParserState::MatchPrefix2;
-				}
-			}
-			ParserState::MatchPrefix2 => {
-				if ascii_char != b':' {
-					str_buf.extend_from_slice(b"id");
-					str_buf.push(ascii_char);
-					parser_state = ParserState::Init;
-				} else {
-					parser_state = ParserState::MatchRowid(Vec::with_capacity(32));
-				}
-			}
-			ParserState::MatchRowid(mut id_buf) => {
-				if ascii_char < b'0' || ascii_char > b'9' {
-					if let Ok(id) = std::str::from_utf8(&id_buf).unwrap().parse::<Rowid>() {
-						let title = db
-							.get_article_title(id)
-							.or_else(|| Some("Unknown Article!".to_string()))
-							.unwrap();
-						str_buf.extend_from_slice(
-							format!("<a href='../../article/{}'>{}</a>", id, title).as_bytes(),
-						);
-					} else {
-						str_buf.extend_from_slice(b"id:");
-						str_buf.extend_from_slice(&id_buf);
-					}
-					str_buf.push(ascii_char);
-					parser_state = ParserState::Init;
-				} else {
-					id_buf.push(ascii_char);
-					parser_state = ParserState::MatchRowid(id_buf);
-				}
-			}
-		}
-	}
-	String::from_utf8(str_buf).unwrap() //Note: This should always work, otherwise it's a programmer error
-}
 
 // URL scheme: Suppose the wiki root is at `https://www.example.com/`
 // Then article ID 5 could be accessed with
@@ -376,14 +305,69 @@ async fn article_page(
 		let syntax_set = SyntaxSet::load_defaults_newlines();
 		let mut html_generator: Option<ClassedHTMLGenerator> = None;
 
-		/*let mut callback = |link: pulldown_cmark::BrokenLink<'_>| {
-			println!("{:?}", link.reference);
-			Some((CowStr::Boxed("a".to_owned().into_boxed_str()), CowStr::Boxed("b".to_owned().into_boxed_str())))
+		let mut callback = |_link: pulldown_cmark::BrokenLink<'_>| {
+			//println!("{:?}", link.reference);
+
+			// Returns Option<link_url, hover_description>
+			// Because we need deeper modifications (in particular, als
+			// the text of the link itself, we just return empty strings here
+			// and modify the ShortcutUnknown Link events.
+			Some((CowStr::Borrowed(""), CowStr::Borrowed("")))
+			//None
 		};
 
-		let parser = Parser::new_with_broken_link_callback(&article.text, options, Some(&mut callback)).map(|event| {*/
+		let mut handle_unknown_ref = |inject_event: &mut VecDeque<Event>,
+		                              _link_url: &str,
+		                              _link_title: &str,
+		                              link_text: &str| {
+			//println!("Unknown ref: {} {} {}", link_url, link_title, link_text);
+			if let Some(article_str) = link_text.strip_prefix("article:") {
+				let mut article_iter = article_str.split('|');
 
-		let parser = TextMergeStream::new(Parser::new_ext(&article.text, options)).map(|event| {
+				if let Some(id_str) = article_iter.next() {
+					if let Ok(id) = id_str.parse::<Rowid>() {
+						let dest_url = "../../article/".to_owned() + id_str;
+						if let Some(title) = db.get_article_title(id) {
+							let displayed_title = article_iter
+								.next()
+								.map_or_else(|| title.to_string(), |s| s.to_string());
+							inject_event.push_back(Event::Start(Tag::Link(
+								LinkType::Autolink,
+								CowStr::Boxed(dest_url.to_string().into_boxed_str()),
+								CowStr::Boxed(title.to_string().into_boxed_str()),
+							)));
+							inject_event.push_back(Event::Text(CowStr::Boxed(
+								displayed_title.into_boxed_str(),
+							)));
+							inject_event.push_back(Event::End(Tag::Link(
+								LinkType::Autolink,
+								CowStr::Boxed(dest_url.to_string().into_boxed_str()),
+								CowStr::Boxed(title.to_string().into_boxed_str()),
+							)));
+							return;
+						}
+					}
+				} else {
+					unreachable!();
+				}
+			}
+
+			// Does not match any wiki commands... Just emit as text.
+			inject_event.push_back(Event::Text(CowStr::Boxed(
+				format!("[{}]", link_text).into_boxed_str(),
+			)));
+		};
+
+		//let parser = TextMergeStream::new(Parser::new_ext(&article.text, options)).map(|event| {
+		let parser = UnknownRefHandlingStream::new(
+			TextMergeStream::new(Parser::new_with_broken_link_callback(
+				&article.text,
+				options,
+				Some(&mut callback),
+			)),
+			&mut handle_unknown_ref,
+		)
+		.map(|event| {
 			//println!("Text: {:?}", &event);
 			match event {
 				Event::Start(Tag::CodeBlock(language)) => {
@@ -401,15 +385,6 @@ async fn article_page(
 					));
 
 					Event::Start(Tag::CodeBlock(language))
-				}
-				Event::Start(Tag::Link(link_type, mut dest_url, title)) => {
-					let url_str: &str = &dest_url;
-					if let Some(id) = rowid_from_str(url_str) {
-						dest_url = CowStr::Boxed(
-							("../../article/".to_owned() + &id.to_string()).into_boxed_str(),
-						);
-					}
-					Event::Start(Tag::Link(link_type, dest_url, title))
 				}
 				Event::End(Tag::CodeBlock(_)) => {
 					let mut local_html_gen = None;
@@ -439,8 +414,6 @@ async fn article_page(
 		// Write to String buffer.
 		let mut html_output = String::new();
 		html::push_html(&mut html_output, parser);
-
-		html_output = expand_id_in_text(html_output, &mut db); //TODO: Remove this in favor of [article:123] style references, using the broken link callback.
 
 		if html_output == "" {
 			html_output = format!("[This article is empty. Click <a href='../../edit/article/{}'>here</a> to edit it.]", article.id);
