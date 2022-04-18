@@ -279,6 +279,50 @@ async fn article_page_post(
 	article_page(db, article_number).await
 }
 
+fn handle_unknown_ref<'a>(
+	db: &mut Database,
+	inject_event: &mut VecDeque<Event<'a>>,
+	_link_url: &str,
+	_link_title: &str,
+	link_text: &str,
+) {
+	//println!("Unknown ref: {} {} {}", link_url, link_title, link_text);
+	if let Some(article_str) = link_text.strip_prefix("article:") {
+		let mut article_iter = article_str.split('|');
+
+		if let Some(id_str) = article_iter.next() {
+			if let Ok(id) = id_str.parse::<Rowid>() {
+				let dest_url = "../../article/".to_owned() + id_str;
+				if let Some(title) = db.get_article_title(id) {
+					let displayed_title = article_iter
+						.next()
+						.map_or_else(|| title.to_string(), |s| s.to_string());
+					inject_event.push_back(Event::Start(Tag::Link(
+						LinkType::Autolink,
+						CowStr::Boxed(dest_url.to_string().into_boxed_str()),
+						CowStr::Boxed(title.to_string().into_boxed_str()),
+					)));
+					inject_event
+						.push_back(Event::Text(CowStr::Boxed(displayed_title.into_boxed_str())));
+					inject_event.push_back(Event::End(Tag::Link(
+						LinkType::Autolink,
+						CowStr::Boxed(dest_url.to_string().into_boxed_str()),
+						CowStr::Boxed(title.to_string().into_boxed_str()),
+					)));
+					return;
+				}
+			}
+		} else {
+			unreachable!();
+		}
+	}
+
+	// Does not match any wiki commands... Just emit as text.
+	inject_event.push_back(Event::Text(CowStr::Boxed(
+		format!("[{}]", link_text).into_boxed_str(),
+	)));
+}
+
 async fn article_page(
 	db: Arc<Mutex<Database>>,
 	article_number: Rowid,
@@ -305,67 +349,31 @@ async fn article_page(
 		let syntax_set = SyntaxSet::load_defaults_newlines();
 		let mut html_generator: Option<ClassedHTMLGenerator> = None;
 
-		let mut callback = |_link: pulldown_cmark::BrokenLink<'_>| {
+		let mut broken_link_callback = |_link: pulldown_cmark::BrokenLink<'_>| {
 			//println!("{:?}", link.reference);
 
 			// Returns Option<link_url, hover_description>
-			// Because we need deeper modifications (in particular, als
-			// the text of the link itself, we just return empty strings here
+			// Because we need deeper modifications (in particular, the
+			// text of the link itself, we just return empty strings here
 			// and modify the ShortcutUnknown Link events.
 			Some((CowStr::Borrowed(""), CowStr::Borrowed("")))
-			//None
 		};
 
-		let mut handle_unknown_ref = |inject_event: &mut VecDeque<Event>,
-		                              _link_url: &str,
-		                              _link_title: &str,
-		                              link_text: &str| {
-			//println!("Unknown ref: {} {} {}", link_url, link_title, link_text);
-			if let Some(article_str) = link_text.strip_prefix("article:") {
-				let mut article_iter = article_str.split('|');
-
-				if let Some(id_str) = article_iter.next() {
-					if let Ok(id) = id_str.parse::<Rowid>() {
-						let dest_url = "../../article/".to_owned() + id_str;
-						if let Some(title) = db.get_article_title(id) {
-							let displayed_title = article_iter
-								.next()
-								.map_or_else(|| title.to_string(), |s| s.to_string());
-							inject_event.push_back(Event::Start(Tag::Link(
-								LinkType::Autolink,
-								CowStr::Boxed(dest_url.to_string().into_boxed_str()),
-								CowStr::Boxed(title.to_string().into_boxed_str()),
-							)));
-							inject_event.push_back(Event::Text(CowStr::Boxed(
-								displayed_title.into_boxed_str(),
-							)));
-							inject_event.push_back(Event::End(Tag::Link(
-								LinkType::Autolink,
-								CowStr::Boxed(dest_url.to_string().into_boxed_str()),
-								CowStr::Boxed(title.to_string().into_boxed_str()),
-							)));
-							return;
-						}
-					}
-				} else {
-					unreachable!();
-				}
-			}
-
-			// Does not match any wiki commands... Just emit as text.
-			inject_event.push_back(Event::Text(CowStr::Boxed(
-				format!("[{}]", link_text).into_boxed_str(),
-			)));
+		let mut unknown_ref_callback = |inject_event: &mut VecDeque<Event>,
+		                                link_url: &str,
+		                                link_title: &str,
+		                                link_text: &str| {
+			// Capture the locked database `db` in the closure here
+			handle_unknown_ref(&mut db, inject_event, link_url, link_title, link_text);
 		};
 
-		//let parser = TextMergeStream::new(Parser::new_ext(&article.text, options)).map(|event| {
 		let parser = UnknownRefHandlingStream::new(
 			TextMergeStream::new(Parser::new_with_broken_link_callback(
 				&article.text,
 				options,
-				Some(&mut callback),
+				Some(&mut broken_link_callback),
 			)),
-			&mut handle_unknown_ref,
+			&mut unknown_ref_callback,
 		)
 		.map(|event| {
 			//println!("Text: {:?}", &event);
