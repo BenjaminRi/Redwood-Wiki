@@ -224,6 +224,50 @@ impl DatabaseConnection {
 }
 
 impl Database {
+	/// Filter illegal characters that
+	/// shall be prevented from entering the
+	/// database
+	fn filter_chars(s: &str) -> String {
+		//TODO: Optimize with std::borrow::Cow<str>?
+		s.replace(
+			&[
+				'\u{00}', // NUL
+				'\u{01}', // SOH
+				'\u{02}', // STX
+				'\u{03}', // ETX
+				'\u{04}', // EOT
+				'\u{05}', // ENQ
+				'\u{06}', // ACK
+				'\u{07}', // BEL
+				'\u{08}', // BS
+				//'\u{09}', // TAB (allowed)
+				//'\u{0A}', // LF (allowed)
+				'\u{0B}', // VT
+				'\u{0C}', // FF
+				'\u{0D}', // CR
+				'\u{0E}', // S0
+				'\u{0F}', // SI
+				'\u{10}', // DLE
+				'\u{11}', // DC1
+				'\u{12}', // DC2
+				'\u{13}', // DC3
+				'\u{14}', // DC4
+				'\u{15}', // NAK
+				'\u{16}', // SYN
+				'\u{17}', // ETB
+				'\u{18}', // CAN
+				'\u{19}', // EM
+				'\u{1A}', // SUB
+				'\u{1B}', // ESC
+				'\u{1C}', // FS
+				'\u{1D}', // GS
+				'\u{1E}', // RS
+				'\u{1F}', // US
+			][..],
+			"",
+		)
+	}
+
 	pub fn init_tables(&mut self) {
 		// Note: SQLite does not have a DATETIME type
 		// Therefore, we implement datetime types as
@@ -351,7 +395,7 @@ impl Database {
 		if let Ok(1) = self.conn
 			.execute(
 				"INSERT INTO article (title, text, date_created, date_modified, revision) VALUES (?1, ?2, ?3, ?4, ?5)",
-				params![article.title, article.text, now, now, article.revision],
+				params![Database::filter_chars(&article.title), Database::filter_chars(&article.text), now, now, article.revision],
 			) {
 			Some(self.conn.last_insert_rowid())
 		} else {
@@ -514,6 +558,9 @@ impl Database {
 		title: Option<&str>,
 		text: Option<&str>,
 	) -> Result<usize, ()> {
+		let title = title.map(|s| Database::filter_chars(s));
+		let text = text.map(|s| Database::filter_chars(s));
+
 		let mut query = "UPDATE article SET".to_string();
 
 		let now = Utc::now().naive_utc();
