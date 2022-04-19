@@ -344,7 +344,12 @@ async fn article_page(
 
 		// Markdown handling
 		let mut options = Options::empty();
-		options.insert(Options::ENABLE_STRIKETHROUGH);
+		options.insert(Options::ENABLE_TABLES); // https://www.tablesgenerator.com/markdown_tables
+										//options.insert(Options::ENABLE_FOOTNOTES); // https://www.markdownguide.org/extended-syntax/#footnotes
+		options.insert(Options::ENABLE_STRIKETHROUGH); // `~~strikethrough~~`
+		options.insert(Options::ENABLE_TASKLISTS); // `- [ ]` or `- [x]` or `- [X]`
+										   //options.insert(Options::ENABLE_SMART_PUNCTUATION); // creates em-dashes for `--` and nice quotes for `"Hello."` or `'thing'`
+										   //For smart punctuation, also see spec: https://github.com/raphlinus/pulldown-cmark/blob/d99667b3a8843744494366799025dcea614ff866/third_party/CommonMark/smart_punct.txt
 
 		let syntax_set = SyntaxSet::load_defaults_newlines();
 		let mut html_generator: Option<ClassedHTMLGenerator> = None;
