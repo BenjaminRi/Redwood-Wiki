@@ -336,7 +336,8 @@ async fn article_page(
 			let css = syntect::html::css_for_theme_with_class_style(
 				&theme,
 				syntect::html::ClassStyle::Spaced,
-			).unwrap();
+			)
+			.unwrap();
 			//println!("{}.css - {}", _key, css);
 			css_str = css;
 			break;
@@ -411,7 +412,9 @@ async fn article_page(
 
 					if let Some(html_generator) = &mut html_generator {
 						// We are in a highlighted code block
-						html_generator.parse_html_for_line_which_includes_newline(&text).unwrap();
+						html_generator
+							.parse_html_for_line_which_includes_newline(&text)
+							.unwrap();
 						Event::Text(CowStr::Borrowed(""))
 					} else {
 						// We are in a regular text element

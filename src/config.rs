@@ -28,13 +28,17 @@ pub fn parse_config() -> std::io::Result<Config> {
 	parse_config_internal(vec![PathBuf::from("wiki-config.toml"), exe_path])
 }
 
+fn toml_err_to_io_err(err: toml::de::Error) -> std::io::Error {
+	std::io::Error::new(ErrorKind::InvalidData, err)
+}
+
 pub fn parse_config_internal(files: Vec<PathBuf>) -> std::io::Result<Config> {
 	log::debug!("Config files: {:?}", files);
 	for file in files {
 		let toml_content = std::fs::read_to_string(&file);
 		match toml_content {
 			Ok(toml_content) => {
-				let config: Config = toml::from_str(&toml_content)?;
+				let config: Config = toml::from_str(&toml_content).map_err(toml_err_to_io_err)?;
 				log::info!("Config file: {:?}", file);
 				log::info!("Config contents: {:?}", config);
 				return Ok(config);
