@@ -26,6 +26,8 @@ mod markdown_utils;
 use markdown_utils::{LinkHighlightStream, TextMergeStream, UnknownRefHandlingStream};
 
 mod regex_utils;
+use regex::RegexBuilder;
+use regex_utils::{DoPartition, Part};
 
 //https://blog.joco.dev/posts/warp_auth_server_tutorial
 
@@ -514,27 +516,82 @@ async fn search_page_post(
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
 	log::trace!("Article update post request: {:?}", param_map);
-	let articles = db.search_articles(
-		param_map
-			.get("search_term_plain")
-			.unwrap_or(&"".to_string()),
-	);
 
-	fn generate_articles_list(articles: Vec<Article>) -> String {
-		let mut accumulator = String::new();
-		for article in &articles {
-			use std::fmt::Write;
-			write!(
-				accumulator,
-				"<a href=\"/article/{}\">{}</a> <span style=\"color: #BBBBBB;\">#{}</span><br>\n",
-				article.id, article.title, article.id
-			)
-			.unwrap();
-		}
-		accumulator
-	}
+	let empty_string = String::new();
+	let search_term = param_map.get("search_term_plain").unwrap_or(&empty_string);
+	let articles = db.search_articles(search_term);
 
 	if let Some(articles) = articles {
+		use std::fmt::Write;
+		let search_regex = RegexBuilder::new(&regex::escape(search_term))
+			.case_insensitive(true)
+			.build()
+			.expect("Invalid Regex");
+
+		let mut exact_list_html = "<br>\nExact matches:<br>\n".to_string();
+		let mut title_list_html = "<br>\nTitle matches:<br>\n".to_string();
+		let mut text_list_html = "<br>\nText matches:<br>\n".to_string();
+		let mut exact_match_cnt = 0;
+		let mut title_match_cnt = 0;
+		let mut text_match_cnt = 0;
+		for article in &articles {
+			let mut title_match = false;
+			let mut title = String::new();
+			for part in search_regex.partition(&article.title) {
+				match part {
+					Part::NoMatch(text) => {
+						Write::write_str(&mut title, text).unwrap();
+					}
+					Part::Match(text) => {
+						title_match = true;
+						write!(title, "<b style=\"color:red;\">{}</b>", text).unwrap();
+					}
+				}
+			}
+
+			//TODO: Unify with generate_articles_list elsewhere. Have one unique way to show article lists.
+
+			if article.title.to_lowercase() == search_term.to_lowercase() {
+				exact_match_cnt += 1;
+				write!(
+					exact_list_html,
+					"<a href=\"/article/{}\">{}</a> <span style=\"color: #BBBBBB;\">#{}</span><br>\n",
+					article.id, title, article.id
+				)
+				.unwrap();
+			} else if title_match {
+				title_match_cnt += 1;
+				write!(
+					title_list_html,
+					"<a href=\"/article/{}\">{}</a> <span style=\"color: #BBBBBB;\">#{}</span><br>\n",
+					article.id, title, article.id
+				)
+				.unwrap();
+			} else {
+				text_match_cnt += 1;
+				write!(
+					text_list_html,
+					"<a href=\"/article/{}\">{}</a> <span style=\"color: #BBBBBB;\">#{}</span><br>\n",
+					article.id, title, article.id
+				)
+				.unwrap();
+			}
+			//log::info!("{:?}", title);
+			//titles.push_str(&format!("<a href=\"https://foo\">{}</a>", title));
+		}
+
+		if exact_match_cnt == 0 {
+			exact_list_html.clear();
+		}
+
+		if title_match_cnt == 0 {
+			title_list_html.clear();
+		}
+
+		if text_match_cnt == 0 {
+			text_list_html.clear();
+		}
+
 		Ok(warp::reply::html(format!(
 			r#"
 <!DOCTYPE html>
@@ -554,7 +611,7 @@ async fn search_page_post(
 			<div class="content markdown">
 				<h2 style="margin-top: 0px;">Articles</h2>
 				<p>
-				{}
+				{}{}{}
 				</p>
 			</div>
 		</div>
@@ -563,7 +620,9 @@ async fn search_page_post(
 	"#,
 			MAIN_STYLE,
 			generate_menu(None),
-			generate_articles_list(articles)
+			exact_list_html,
+			title_list_html,
+			text_list_html
 		)))
 	} else {
 		Ok(warp::reply::html(format!(
