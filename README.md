@@ -15,6 +15,7 @@ Redwood-wiki is designed to last. This is why the implementation places a partic
 - Formatted with Markdown ([CommonMark](https://commonmark.org/))
 - Code highlighting with [syntect](https://github.com/trishume/syntect) using [Sublime Text syntax definitions](https://www.sublimetext.com/docs/syntax.html#include-syntax)
 - Displayed with web technology ([HTTP](https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol), [HTML](https://en.wikipedia.org/wiki/HTML), [JavaScript](https://en.wikipedia.org/wiki/JavaScript) optional)
+- Article editing in browser with [EasyMDE](https://github.com/Ionaru/easy-markdown-editor)
 
 ## Why should I use Redwood-wiki?
 
