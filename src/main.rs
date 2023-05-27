@@ -177,11 +177,12 @@ async fn article_edit_page(
 
 {}
 		</style>
-	</head>
-	<body>
+
 		<script>
 			{}
 		</script>
+	</head>
+	<body>
 		
 		
 		{}
