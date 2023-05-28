@@ -239,6 +239,7 @@ async fn article_edit_page(
 				
 				<script>
 				var easyMDE = new EasyMDE({{
+					autoDownloadFontAwesome: false,
 					lineNumbers: true,
 					spellChecker: false,
 					toolbar: false,
