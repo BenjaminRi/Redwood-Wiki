@@ -1,0 +1,5 @@
+# Uncomment this to link statically against libc which is needed for platforms with too old libc
+# https://stackoverflow.com/questions/58526782/how-can-i-create-a-static-executable-with-rustc-using-glibc-instead-of-musl/67616507#67616507
+#[build]
+#rustflags = ["-C", "target-feature=+crt-static"]
+#target = "x86_64-unknown-linux-gnu"
