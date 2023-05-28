@@ -128,6 +128,8 @@ impl DatabaseConnection {
 		database_path: &Path,
 		open_mode: OpenMode,
 	) -> Result<DatabaseConnection, DatabaseConnectError> {
+		log::info!("SQLite version: {}", rusqlite::version());
+
 		pub fn create_new(
 			database_path: &Path,
 		) -> Result<DatabaseConnection, DatabaseConnectError> {
