@@ -394,7 +394,9 @@ impl Database {
 
 	pub fn create_article(&mut self, article: &Article) -> Option<Rowid> {
 		let now = Utc::now().naive_utc();
-		if let Ok(1) = self.conn
+		if article.title.is_empty() {
+			None
+		} else if let Ok(1) = self.conn
 			.execute(
 				"INSERT INTO article (title, text, date_created, date_modified, revision) VALUES (?1, ?2, ?3, ?4, ?5)",
 				params![Database::filter_chars(&article.title), Database::filter_chars(&article.text), now, now, article.revision],
