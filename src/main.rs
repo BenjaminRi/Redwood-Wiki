@@ -57,6 +57,8 @@ impl HtmlDocument {
 		<meta name=viewport content="width=device-width, initial-scale=1.0">
 		<meta name="description" content="">
 		<title>{}</title>
+		<link rel="icon" href="/favicon.ico" sizes="any"><!-- 32×32 -->
+		<link rel="icon" href="/icon.svg" type="image/svg+xml">
 		<style>
 {}
 
@@ -138,6 +140,14 @@ async fn main() {
 	let db = warp::any().map(move || db.clone());
 
 	let index_path = warp::path::end().and(db.clone()).and_then(index_page);
+	let favicon_ico_path_get = warp::get()
+		.and(warp::path("favicon.ico"))
+		.and(warp::path::end())
+		.and_then(favicon_ico_page);
+	let favicon_svg_path_get = warp::get()
+		.and(warp::path("icon.svg"))
+		.and(warp::path::end())
+		.and_then(favicon_svg_page);
 	let article_path_post = warp::post()
 		.and(warp::path("article"))
 		.and(db.clone())
@@ -192,6 +202,8 @@ async fn main() {
 		.and(warp::path::end())
 		.and_then(articles_page);
 	let routes = index_path
+		.or(favicon_ico_path_get)
+		.or(favicon_svg_path_get)
 		.or(article_edit_path)
 		.or(article_path_get)
 		.or(article_path_post)
@@ -646,6 +658,30 @@ async fn index_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::
 		generate_menu(None)
 	);
 	Ok(warp::reply::html(doc.to_html()))
+}
+
+use warp::http::response::Response;
+
+const FAVICON_ICO: &'static [u8] = include_bytes!("favicon/favicon.ico");
+
+async fn favicon_ico_page() -> Result<impl warp::Reply, warp::Rejection> {
+	let response = Response::builder()
+		.status(200)
+		.header("Content-Type", "image/x-icon")
+		.body(FAVICON_ICO)
+		.unwrap();
+	Ok(response)
+}
+
+const FAVICON_SVG: &'static [u8] = include_bytes!("favicon/icon.svg");
+
+async fn favicon_svg_page() -> Result<impl warp::Reply, warp::Rejection> {
+	let response = Response::builder()
+		.status(200)
+		.header("Content-Type", "image/svg+xml")
+		.body(FAVICON_SVG)
+		.unwrap();
+	Ok(response)
 }
 
 async fn articles_page(db: Arc<Mutex<Database>>) -> Result<impl warp::Reply, warp::Rejection> {
