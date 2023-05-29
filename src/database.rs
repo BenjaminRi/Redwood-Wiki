@@ -11,21 +11,21 @@ use rusqlite::{
 };
 
 #[derive(Debug, Copy, Clone)]
-pub struct Rowid {
+pub struct ItemId {
 	value: u32,
 }
 
-impl From<u32> for Rowid {
+impl From<u32> for ItemId {
 	fn from(value: u32) -> Self {
-		Rowid { value }
+		ItemId { value }
 	}
 }
 
-impl TryFrom<i64> for Rowid {
+impl TryFrom<i64> for ItemId {
 	type Error = std::num::TryFromIntError;
 
 	fn try_from(value: i64) -> Result<Self, Self::Error> {
-		u32::try_from(value).map(|value| Rowid { value })
+		u32::try_from(value).map(|value| ItemId { value })
 	}
 }
 
@@ -39,29 +39,29 @@ fn parse_u32(in_str: &str) -> Option<u32> {
 	}
 }
 
-impl std::str::FromStr for Rowid {
+impl std::str::FromStr for ItemId {
 	type Err = ();
 	fn from_str(in_str: &str) -> Result<Self, <Self as std::str::FromStr>::Err> {
-		parse_u32(in_str).map(|value| Rowid { value }).ok_or(())
+		parse_u32(in_str).map(|value| ItemId { value }).ok_or(())
 	}
 }
 
-impl std::fmt::Display for Rowid {
+impl std::fmt::Display for ItemId {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
 		write!(f, "{}", self.value)
 	}
 }
 
-impl FromSql for Rowid {
+impl FromSql for ItemId {
 	fn column_result(val_ref: ValueRef<'_>) -> Result<Self, FromSqlError> {
 		let value = val_ref.as_i64()?;
 		u32::try_from(value)
-			.map(|value| Rowid { value })
+			.map(|value| ItemId { value })
 			.map_err(|_| rusqlite::types::FromSqlError::InvalidType)
 	}
 }
 
-impl ToSql for Rowid {
+impl ToSql for ItemId {
 	fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
 		self.value.to_sql()
 	}
@@ -69,7 +69,7 @@ impl ToSql for Rowid {
 
 #[derive(Debug)]
 pub struct Article {
-	pub id: Rowid,
+	pub id: ItemId,
 	pub title: String,
 	pub text: String,
 	pub date_created: chrono::NaiveDateTime,
@@ -122,7 +122,7 @@ impl FromSql for WikiSemVer {
 
 #[derive(Debug)]
 pub struct TableLayout {
-	id: Rowid,
+	id: ItemId,
 	version: WikiSemVer,
 	migrating_to_version: Option<WikiSemVer>,
 	date_created: chrono::NaiveDateTime,
@@ -444,7 +444,7 @@ impl Database {
 		}
 	}
 
-	pub fn create_article(&mut self, article: &Article) -> Option<Rowid> {
+	pub fn create_article(&mut self, article: &Article) -> Option<ItemId> {
 		let now = Utc::now().naive_utc();
 		if article.title.is_empty() {
 			None
@@ -453,7 +453,7 @@ impl Database {
 				"INSERT INTO article (title, text, date_created, date_modified, revision) VALUES (?1, ?2, ?3, ?4, ?5)",
 				params![Database::filter_chars(&article.title), Database::filter_chars(&article.text), now, now, article.revision],
 			) {
-			Rowid::try_from(self.conn.last_insert_rowid()).ok()
+			ItemId::try_from(self.conn.last_insert_rowid()).ok()
 		} else {
 			None
 		}
@@ -497,7 +497,7 @@ impl Database {
 		}
 	}
 
-	pub fn get_article(&mut self, id: Rowid) -> Option<Article> {
+	pub fn get_article(&mut self, id: ItemId) -> Option<Article> {
 		let mut stmt = self
 			.conn
 			.prepare(
@@ -593,7 +593,7 @@ impl Database {
 		Some(articles)
 	}
 
-	pub fn get_article_title(&mut self, id: Rowid) -> Option<String> {
+	pub fn get_article_title(&mut self, id: ItemId) -> Option<String> {
 		let mut stmt = self
 			.conn
 			.prepare("SELECT title FROM article WHERE id = ?")
@@ -610,7 +610,7 @@ impl Database {
 
 	pub fn update_article(
 		&mut self,
-		id: Rowid,
+		id: ItemId,
 		title: Option<&str>,
 		text: Option<&str>,
 	) -> Result<usize, ()> {

@@ -17,7 +17,7 @@ use tokio::sync::Mutex;
 use warp::{Filter, Reply};
 
 mod database;
-use database::{Article, Database, DatabaseConnection, Rowid};
+use database::{Article, Database, DatabaseConnection, ItemId};
 
 mod config;
 use config::parse_config;
@@ -151,7 +151,7 @@ async fn main() {
 	let article_path_post = warp::post()
 		.and(warp::path("article"))
 		.and(db.clone())
-		.and(warp::path::param::<Rowid>())
+		.and(warp::path::param::<ItemId>())
 		.and(warp::path::end())
 		.and(warp::body::form()) //This does not have a default size limit, it would be wise to use one to prevent a overly large request from using too much memory.
 		//.and(warp::body::content_length_limit(1024 * 32))
@@ -159,7 +159,7 @@ async fn main() {
 	let article_path_get = warp::get()
 		.and(warp::path("article"))
 		.and(db.clone())
-		.and(warp::path::param::<Rowid>())
+		.and(warp::path::param::<ItemId>())
 		.and(warp::path::end())
 		.and_then(article_page);
 	let search_path_post = warp::post()
@@ -179,7 +179,7 @@ async fn main() {
 	let article_edit_path = warp::path("edit")
 		.and(warp::path("article"))
 		.and(db.clone())
-		.and(warp::path::param::<Rowid>())
+		.and(warp::path::param::<ItemId>())
 		.and(warp::path::end())
 		.and_then(article_edit_page);
 	let article_create_get_path = warp::get()
@@ -219,7 +219,7 @@ async fn main() {
 
 async fn article_edit_page(
 	db: Arc<Mutex<Database>>,
-	article_number: Rowid,
+	article_number: ItemId,
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
 
@@ -294,7 +294,7 @@ async fn article_edit_page(
 
 async fn article_page_post(
 	db: Arc<Mutex<Database>>,
-	article_number: Rowid,
+	article_number: ItemId,
 	param_map: HashMap<String, String>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	{
@@ -322,7 +322,7 @@ fn handle_unknown_ref<'a>(
 		let mut article_iter = article_str.split('|');
 
 		if let Some(id_str) = article_iter.next() {
-			if let Ok(id) = id_str.parse::<Rowid>() {
+			if let Ok(id) = id_str.parse::<ItemId>() {
 				let dest_url = "../../article/".to_owned() + id_str;
 				if let Some(title) = db.get_article_title(id) {
 					let displayed_title = article_iter
@@ -356,7 +356,7 @@ fn handle_unknown_ref<'a>(
 
 async fn article_page(
 	db: Arc<Mutex<Database>>,
-	article_number: Rowid,
+	article_number: ItemId,
 ) -> Result<impl warp::Reply, warp::Rejection> {
 	let mut db = db.lock().await;
 
@@ -808,7 +808,7 @@ async fn article_create_page(
 	Ok(warp::reply::html(doc.to_html()))
 }
 
-fn generate_menu(article_number_opt: Option<Rowid>) -> String {
+fn generate_menu(article_number_opt: Option<ItemId>) -> String {
 	if let Some(article_number) = article_number_opt {
 		format!(
 			r#"<div class="side_content">
