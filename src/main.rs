@@ -750,7 +750,7 @@ async fn article_create_page_post(
 	log::trace!("Article create post request: {:?}", param_map);
 
 	let art = Article {
-		id: 0,
+		id: 0.into(),
 		title: param_map.get("article_title").unwrap().to_string(), //TODO: Dangerous unwrap here, can crash server!
 		text: "".to_string(),
 		date_created: Utc::now().naive_utc(),

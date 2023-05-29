@@ -6,7 +6,3 @@
 - Sanitize text to prevent HTML injections (e.g. in article title, text)
 - Prevent CSRF
 
-## URL scheme
-
-- + and - signs work (prevent this)
-- negative indices for articles don't give http method not allowed

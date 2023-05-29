@@ -1,11 +1,73 @@
-pub type Rowid = i64;
-
 use std::path::Path;
 
 use chrono;
 use chrono::Utc;
 
-use rusqlite::{params, types::FromSql, types::ToSqlOutput, Connection, OpenFlags, ToSql};
+use std::convert::TryFrom;
+
+use rusqlite::{
+	params, types::FromSql, types::FromSqlError, types::ToSqlOutput, types::ValueRef, Connection,
+	OpenFlags, ToSql,
+};
+
+#[derive(Debug, Copy, Clone)]
+pub struct Rowid {
+	value: u32,
+}
+
+impl From<u32> for Rowid {
+	fn from(value: u32) -> Self {
+		Rowid { value }
+	}
+}
+
+impl TryFrom<i64> for Rowid {
+	type Error = ();
+
+	fn try_from(value: i64) -> Result<Self, Self::Error> {
+		u32::try_from(value)
+			.map(|value| Rowid { value })
+			.map_err(|_| ())
+	}
+}
+
+fn parse_u32(in_str: &str) -> Option<u32> {
+	if in_str.starts_with("+") {
+		// Do not accept strings like `+10`
+		// We don't want versions like `+1.+3.+9`
+		None
+	} else {
+		in_str.parse::<u32>().ok()
+	}
+}
+
+impl std::str::FromStr for Rowid {
+	type Err = ();
+	fn from_str(in_str: &str) -> Result<Self, <Self as std::str::FromStr>::Err> {
+		parse_u32(in_str).map(|value| Rowid { value }).ok_or(())
+	}
+}
+
+impl std::fmt::Display for Rowid {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		write!(f, "{}", self.value)
+	}
+}
+
+impl FromSql for Rowid {
+	fn column_result(val_ref: ValueRef<'_>) -> Result<Self, FromSqlError> {
+		let value = val_ref.as_i64()?;
+		u32::try_from(value)
+			.map(|value| Rowid { value })
+			.map_err(|_| rusqlite::types::FromSqlError::InvalidType)
+	}
+}
+
+impl ToSql for Rowid {
+	fn to_sql(&self) -> Result<ToSqlOutput<'_>, rusqlite::Error> {
+		self.value.to_sql()
+	}
+}
 
 #[derive(Debug)]
 pub struct Article {
@@ -34,19 +96,11 @@ impl ToSql for WikiSemVer {
 }
 
 impl FromSql for WikiSemVer {
-	fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-		let version_str = value.as_str()?;
+	fn column_result(
+		val_ref: rusqlite::types::ValueRef<'_>,
+	) -> rusqlite::types::FromSqlResult<Self> {
+		let version_str = val_ref.as_str()?;
 		let mut version_iter = version_str.split('.');
-
-		fn parse_u32(in_str: &str) -> Option<u32> {
-			if in_str.starts_with("+") {
-				// Do not accept strings like `+10`
-				// We don't want versions like `+1.+3.+9`
-				None
-			} else {
-				in_str.parse::<u32>().ok()
-			}
-		}
 
 		match (
 			version_iter.next(),
@@ -336,7 +390,7 @@ impl Database {
 			.unwrap();
 
 		let layout = TableLayout {
-			id: 1,
+			id: 1.into(),
 			version: WikiSemVer {
 				major: 0,
 				minor: 1,
@@ -401,7 +455,7 @@ impl Database {
 				"INSERT INTO article (title, text, date_created, date_modified, revision) VALUES (?1, ?2, ?3, ?4, ?5)",
 				params![Database::filter_chars(&article.title), Database::filter_chars(&article.text), now, now, article.revision],
 			) {
-			Some(self.conn.last_insert_rowid())
+			Rowid::try_from(self.conn.last_insert_rowid()).ok()
 		} else {
 			None
 		}
@@ -410,7 +464,7 @@ impl Database {
 	#[allow(dead_code)]
 	pub fn test_tables(&mut self) {
 		let art1 = Article {
-			id: 0,
+			id: 0.into(),
 			title: "TITLE_x".to_string(),
 			text: "TEXT_x".to_string(),
 			date_created: Utc::now().naive_utc(),
