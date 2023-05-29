@@ -22,12 +22,10 @@ impl From<u32> for Rowid {
 }
 
 impl TryFrom<i64> for Rowid {
-	type Error = ();
+	type Error = std::num::TryFromIntError;
 
 	fn try_from(value: i64) -> Result<Self, Self::Error> {
-		u32::try_from(value)
-			.map(|value| Rowid { value })
-			.map_err(|_| ())
+		u32::try_from(value).map(|value| Rowid { value })
 	}
 }
 
