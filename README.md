@@ -6,6 +6,19 @@ Redwood-wiki is a software to store, edit and link articles. It is similar to [M
 
 The articles are formatted with Markdown and stored in an SQLite database. Redwood-wiki contains a web server that makes the user interface accessible through a browser. Redwood-wiki runs as a single executable, no external dependencies or programs are required.
 
+## How to run
+
+The wiki is fully self-contained in one single binary. To run the wiki, you need:
+
+- The `redwood-wiki` binary, compiled for the architecture and operating system of your machine
+- A configuration file with the name `wiki-config.toml` that defines things like where the wiki database should be stored and on which IP address and port the server listens
+
+The wiki will look for `wiki-config.toml` in the current directory (`pwd`). If the file cannot be found there, it looks for the configuration in the same directory where the binary itself is located. If no configuration can be found at all or the [TOML](https://toml.io/en/) configuration file is malformed, the wiki terminates early with an error because the configuration parameters are mandatory to start the wiki.
+
+A sample configuration file can be found in the repository at `./wiki-config.toml`. There are only a few parameters and the configuration is straightforward.
+
+Once the wiki is running, it can be accessed at the configured IP address with a browser.
+
 ## Design philosophy
 
 Redwood-wiki is designed to last. This is why the implementation places a particular emphasis on robust, ubiquitous technologies and standards. Every design decision was made with great care and deliberation. The following technologies are the foundation of Redwood-wiki:
