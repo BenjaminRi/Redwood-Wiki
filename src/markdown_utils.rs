@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use regex::Regex;
+use std::sync::OnceLock;
 
 use pulldown_cmark::{CowStr, Event, LinkType, Tag};
 
@@ -132,14 +133,16 @@ where
 				// Section 2.2. Reserved Characters
 				// Section 2.3. Unreserved Characters
 				// A-Za-z0-9-_.~:/?#[]@!$&'()*+,;=
-				lazy_static! {
-					static ref LINK_REGEX: Regex = Regex::new(
-						r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)"
-					)
-					.unwrap();
-				}
 
-				self.inject_event = LINK_REGEX
+				static LINK_REGEX: OnceLock<Regex> = OnceLock::new();
+				let link_regex: &Regex = LINK_REGEX.get_or_init(|| {
+					Regex::new(
+						r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)",
+					)
+					.unwrap()
+				});
+
+				self.inject_event = link_regex
 					.partition(&next_text)
 					.flat_map(|mat| match mat {
 						Part::NoMatch(text) => vec![Event::Text(CowStr::Boxed(
