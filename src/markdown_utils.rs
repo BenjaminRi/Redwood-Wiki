@@ -85,6 +85,7 @@ where
 pub struct LinkHighlightStream<'a, I> {
 	iter: I,
 	inject_event: VecDeque<Event<'a>>,
+	inside_link: bool,
 }
 
 impl<'a, I> LinkHighlightStream<'a, I>
@@ -95,6 +96,7 @@ where
 		Self {
 			iter,
 			inject_event: VecDeque::new(),
+			inside_link: false,
 		}
 	}
 }
@@ -108,6 +110,12 @@ where
 	fn next(&mut self) -> Option<Self::Item> {
 		if !self.inject_event.is_empty() {
 			return self.inject_event.pop_front();
+		}
+
+		if self.inside_link {
+			// Suspend link detection logic within certain elements like autolinks
+			// to avoid breaking or duplicating links.
+			return self.iter.next();
 		}
 
 		match self.iter.next() {
@@ -155,6 +163,14 @@ where
 					})
 					.collect();
 				self.next()
+			}
+			next_event @ Some(Event::Start(Tag::Link(_, _, _))) => {
+				self.inside_link = true;
+				next_event
+			}
+			next_event @ Some(Event::End(Tag::Link(_, _, _))) => {
+				self.inside_link = false;
+				next_event
 			}
 			next_event => next_event,
 		}
@@ -311,15 +327,20 @@ mod tests {
 
 	#[test]
 	fn test_link_highlight() {
+		// No event (empty stream)
 		assert_eq!(
 			LinkHighlightStream::new(vec![].into_iter()).collect::<Vec<Event<'_>>>(),
 			vec![]
 		);
+
+		// Simple text event
 		assert_eq!(
 			LinkHighlightStream::new(vec![Event::Text(CowStr::Borrowed("foo"))].into_iter())
 				.collect::<Vec<Event<'_>>>(),
 			vec![Event::Text(CowStr::Borrowed("foo"))]
 		);
+
+		// Simple text events with hard break
 		assert_eq!(
 			LinkHighlightStream::new(
 				vec![
@@ -336,6 +357,8 @@ mod tests {
 				Event::Text(CowStr::Borrowed("bar"))
 			]
 		);
+
+		// Text containing a link
 		assert_eq!(
 			LinkHighlightStream::new(
 				vec![Event::Text(CowStr::Borrowed("foo https://example.com bar")),].into_iter()
@@ -358,6 +381,45 @@ mod tests {
 			]
 		);
 
+		// Autolink contents must be ignored as it already is a clickable link
+		assert_eq!(
+			LinkHighlightStream::new(
+				vec![
+					Event::Text(CowStr::Borrowed("foo ")),
+					Event::Start(Tag::Link(
+						LinkType::Autolink,
+						CowStr::Borrowed("https://example.com"),
+						CowStr::Borrowed(""),
+					)),
+					Event::Text(CowStr::Borrowed("https://example.com")),
+					Event::End(Tag::Link(
+						LinkType::Autolink,
+						CowStr::Borrowed("https://example.com"),
+						CowStr::Borrowed(""),
+					)),
+					Event::Text(CowStr::Borrowed(" bar"))
+				]
+				.into_iter()
+			)
+			.collect::<Vec<Event<'_>>>(),
+			vec![
+				Event::Text(CowStr::Borrowed("foo ")),
+				Event::Start(Tag::Link(
+					LinkType::Autolink,
+					CowStr::Borrowed("https://example.com"),
+					CowStr::Borrowed(""),
+				)),
+				Event::Text(CowStr::Borrowed("https://example.com")),
+				Event::End(Tag::Link(
+					LinkType::Autolink,
+					CowStr::Borrowed("https://example.com"),
+					CowStr::Borrowed(""),
+				)),
+				Event::Text(CowStr::Borrowed(" bar"))
+			]
+		);
+
+		// Make sure that the following URLs with special characters are all recognized
 		let special_urls = vec![
 			"https://url.com/foo-bar",
 			"https://url.com/foo_bar",
@@ -409,6 +471,7 @@ mod tests {
 				.collect::<Vec<Event<'_>>>()
 		);
 
+		// Make sure that the following URLs with different protocols are all recognized
 		let protocol_urls = vec!["http://www.example.com", "https://www.example.com"];
 		assert_eq!(
 			LinkHighlightStream::new(
