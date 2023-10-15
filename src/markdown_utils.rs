@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use regex::Regex;
 use std::sync::OnceLock;
 
-use pulldown_cmark::{CodeBlockKind, CowStr, Event, LinkType, Tag};
+use pulldown_cmark::{CowStr, Event, LinkType, Tag};
 
 use super::regex_utils::{DoPartition, Part};
 
@@ -77,6 +77,35 @@ where
 	}
 }
 
+// For debugging purposes only
+pub struct PrintEventStream<I> {
+	iter: I,
+	counter: usize,
+}
+
+impl<'a, I> PrintEventStream<I>
+where
+	I: Iterator<Item = Event<'a>>,
+{
+	pub fn new(iter: I) -> Self {
+		Self { iter, counter: 0 }
+	}
+}
+
+impl<'a, I> Iterator for PrintEventStream<I>
+where
+	I: Iterator<Item = Event<'a>>,
+{
+	type Item = Event<'a>;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		let event = self.iter.next();
+		self.counter += 1;
+		println!("Event {: >8}: {:?}", self.counter, event);
+		event
+	}
+}
+
 // To use the LinkHighlightStream, prior text merging is
 // required to prevent link text events being sliced up:
 //<a href="https://url.com/foo">https://url.com/foo</a>[bar
@@ -117,9 +146,7 @@ where
 
 		match self.iter.next() {
 			Some(Event::Text(next_text)) => {
-				if self.inside_link
-				/* || self.inside_codeblock */
-				{
+				if self.inside_link || self.inside_codeblock {
 					// Suspend link detection logic within certain elements like autolinks
 					// to avoid breaking or duplicating links. Do not detect links in code blocks.
 					Some(Event::Text(next_text))
@@ -262,6 +289,7 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use pulldown_cmark::CodeBlockKind;
 
 	#[test]
 	fn test_text_merge() {
@@ -481,7 +509,7 @@ mod tests {
 			]
 		);
 
-		/*// Ignore text content in code blocks
+		// Ignore text content in code blocks
 		assert_eq!(
 			LinkHighlightStream::new(
 				vec![
@@ -532,7 +560,7 @@ mod tests {
 					CowStr::Borrowed(""),
 				)),
 			]
-		);*/
+		);
 
 		// Make sure that the following URLs with special characters are all recognized
 		let special_urls = vec![

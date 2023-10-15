@@ -4,10 +4,7 @@ use std::sync::Arc;
 use chrono;
 use chrono::Utc;
 
-use pulldown_cmark::{html, CodeBlockKind, CowStr, Event, LinkType, Options, Parser, Tag};
-
-use syntect::html::{ClassStyle, ClassedHTMLGenerator};
-use syntect::parsing::SyntaxSet;
+use pulldown_cmark::{html, CowStr, Event, LinkType, Options, Parser, Tag};
 
 use tokio::sync::Mutex;
 
@@ -21,6 +18,9 @@ use config::parse_config;
 
 mod markdown_utils;
 use markdown_utils::{LinkHighlightStream, TextMergeStream, UnknownRefHandlingStream};
+
+mod codeblock_syntax_highlight;
+use codeblock_syntax_highlight::SyntaxHighlightStream;
 
 mod regex_utils;
 use regex::RegexBuilder;
@@ -380,9 +380,6 @@ async fn article_page(
 										   //options.insert(Options::ENABLE_SMART_PUNCTUATION); // creates em-dashes for `--` and nice quotes for `"Hello."` or `'thing'`
 										   //For smart punctuation, also see spec: https://github.com/raphlinus/pulldown-cmark/blob/d99667b3a8843744494366799025dcea614ff866/third_party/CommonMark/smart_punct.txt
 
-		let syntax_set = SyntaxSet::load_defaults_newlines();
-		let mut html_generator: Option<ClassedHTMLGenerator> = None;
-
 		let mut broken_link_callback = |_link: pulldown_cmark::BrokenLink<'_>| {
 			//println!("{:?}", link.reference);
 
@@ -408,52 +405,9 @@ async fn article_page(
 				Some(&mut broken_link_callback),
 			)),
 			&mut unknown_ref_callback,
-		)
-		.map(|event| {
-			//println!("Text: {:?}", &event);
-			match event {
-				Event::Start(Tag::CodeBlock(language)) => {
-					let syntax = if let CodeBlockKind::Fenced(lang_str) = &language {
-						syntax_set.find_syntax_by_token(&lang_str)
-					} else {
-						None
-					}
-					.unwrap_or_else(|| syntax_set.find_syntax_plain_text());
+		);
 
-					html_generator = Some(ClassedHTMLGenerator::new_with_class_style(
-						&syntax,
-						&syntax_set,
-						ClassStyle::Spaced,
-					));
-
-					Event::Start(Tag::CodeBlock(language))
-				}
-				Event::End(Tag::CodeBlock(_)) => {
-					let mut local_html_gen = None;
-					std::mem::swap(&mut local_html_gen, &mut html_generator);
-					let mut html = local_html_gen.unwrap().finalize(); // If this panics, it's a bug in `pulldown-cmark`
-					html.push_str("</code></pre>");
-					Event::Html(CowStr::Boxed(html.into_boxed_str()))
-				}
-				Event::Text(text) => {
-					//println!("Text: {:?}", &text);
-
-					if let Some(html_generator) = &mut html_generator {
-						// We are in a highlighted code block
-						html_generator
-							.parse_html_for_line_which_includes_newline(&text)
-							.unwrap();
-						Event::Text(CowStr::Borrowed(""))
-					} else {
-						// We are in a regular text element
-						Event::Text(text)
-					}
-				}
-				_ => event,
-			}
-		});
-
-		let parser = LinkHighlightStream::new(parser.into_iter());
+		let parser = LinkHighlightStream::new(SyntaxHighlightStream::new(parser.into_iter()));
 
 		// Write to String buffer.
 		let mut html_output = String::new();
