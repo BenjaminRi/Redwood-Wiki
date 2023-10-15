@@ -87,6 +87,7 @@ impl<'a, I> PrintEventStream<I>
 where
 	I: Iterator<Item = Event<'a>>,
 {
+	#[allow(dead_code)]
 	pub fn new(iter: I) -> Self {
 		Self { iter, counter: 0 }
 	}
@@ -160,6 +161,8 @@ where
 
 					// Regex to find links: Characters taken from
 					// https://www.ietf.org/rfc/rfc3986.txt
+					// Section 2.1. Percent-Encoding
+					// % HEXDIG HEXDIG
 					// Section 2.2. Reserved Characters
 					// Section 2.3. Unreserved Characters
 					// A-Za-z0-9-_.~:/?#[]@!$&'()*+,;=
@@ -167,7 +170,7 @@ where
 					static LINK_REGEX: OnceLock<Regex> = OnceLock::new();
 					let link_regex: &Regex = LINK_REGEX.get_or_init(|| {
 						Regex::new(
-							r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)",
+							r"(?P<p>https?)://(?P<l>[%A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)",
 						)
 						.unwrap()
 					});
