@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use regex::Regex;
 use std::sync::OnceLock;
 
-use pulldown_cmark::{CowStr, Event, LinkType, Tag};
+use pulldown_cmark::{CodeBlockKind, CowStr, Event, LinkType, Tag};
 
 use super::regex_utils::{DoPartition, Part};
 
@@ -87,6 +87,7 @@ pub struct LinkHighlightStream<'a, I> {
 	iter: I,
 	inject_event: VecDeque<Event<'a>>,
 	inside_link: bool,
+	inside_codeblock: bool,
 }
 
 impl<'a, I> LinkHighlightStream<'a, I>
@@ -98,6 +99,7 @@ where
 			iter,
 			inject_event: VecDeque::new(),
 			inside_link: false,
+			inside_codeblock: false,
 		}
 	}
 }
@@ -113,59 +115,61 @@ where
 			return self.inject_event.pop_front();
 		}
 
-		if self.inside_link {
-			// Suspend link detection logic within certain elements like autolinks
-			// to avoid breaking or duplicating links.
-			return self.iter.next();
-		}
-
 		match self.iter.next() {
 			Some(Event::Text(next_text)) => {
-				// We found a text event, apply link replacement
-				// Note: This is inefficient in two ways:
-				// 1. If the regex does not match, we could just straight emit the event
-				//    and skip all this vector and to_string() stuff altogether.
-				// 2. We could skip the VecDeque collect(), pop_front(), etc. entirely if we
-				//    could solve the lifetime problem of keeping the Partition iterator around
+				if self.inside_link
+				/* || self.inside_codeblock */
+				{
+					// Suspend link detection logic within certain elements like autolinks
+					// to avoid breaking or duplicating links. Do not detect links in code blocks.
+					Some(Event::Text(next_text))
+				} else {
+					// We found a text event, apply link replacement
+					// Note: This is inefficient in two ways:
+					// 1. If the regex does not match, we could just straight emit the event
+					//    and skip all this vector and to_string() stuff altogether.
+					// 2. We could skip the VecDeque collect(), pop_front(), etc. entirely if we
+					//    could solve the lifetime problem of keeping the Partition iterator around
 
-				// Regex to find links: Characters taken from
-				// https://www.ietf.org/rfc/rfc3986.txt
-				// Section 2.2. Reserved Characters
-				// Section 2.3. Unreserved Characters
-				// A-Za-z0-9-_.~:/?#[]@!$&'()*+,;=
+					// Regex to find links: Characters taken from
+					// https://www.ietf.org/rfc/rfc3986.txt
+					// Section 2.2. Reserved Characters
+					// Section 2.3. Unreserved Characters
+					// A-Za-z0-9-_.~:/?#[]@!$&'()*+,;=
 
-				static LINK_REGEX: OnceLock<Regex> = OnceLock::new();
-				let link_regex: &Regex = LINK_REGEX.get_or_init(|| {
-					Regex::new(
-						r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)",
-					)
-					.unwrap()
-				});
+					static LINK_REGEX: OnceLock<Regex> = OnceLock::new();
+					let link_regex: &Regex = LINK_REGEX.get_or_init(|| {
+						Regex::new(
+							r"(?P<p>https?)://(?P<l>[A-Za-z0-9\-_\.\~:/\?\#\[\]@!\$\&'\(\)\*\+,;=]+)",
+						)
+						.unwrap()
+					});
 
-				self.inject_event = link_regex
-					.partition(&next_text)
-					.flat_map(|mat| match mat {
-						Part::NoMatch(text) => vec![Event::Text(CowStr::Boxed(
-							text.to_string().into_boxed_str(),
-						))]
-						.into_iter(),
-						Part::Match(text) => vec![
-							Event::Start(Tag::Link(
-								LinkType::Autolink,
-								CowStr::Boxed(text.to_string().into_boxed_str()),
-								CowStr::Borrowed(""),
-							)),
-							Event::Text(CowStr::Boxed(text.to_string().into_boxed_str())),
-							Event::End(Tag::Link(
-								LinkType::Autolink,
-								CowStr::Boxed(text.to_string().into_boxed_str()),
-								CowStr::Borrowed(""),
-							)),
-						]
-						.into_iter(),
-					})
-					.collect();
-				self.next()
+					self.inject_event = link_regex
+						.partition(&next_text)
+						.flat_map(|mat| match mat {
+							Part::NoMatch(text) => vec![Event::Text(CowStr::Boxed(
+								text.to_string().into_boxed_str(),
+							))]
+							.into_iter(),
+							Part::Match(text) => vec![
+								Event::Start(Tag::Link(
+									LinkType::Autolink,
+									CowStr::Boxed(text.to_string().into_boxed_str()),
+									CowStr::Borrowed(""),
+								)),
+								Event::Text(CowStr::Boxed(text.to_string().into_boxed_str())),
+								Event::End(Tag::Link(
+									LinkType::Autolink,
+									CowStr::Boxed(text.to_string().into_boxed_str()),
+									CowStr::Borrowed(""),
+								)),
+							]
+							.into_iter(),
+						})
+						.collect();
+					self.next()
+				}
 			}
 			next_event @ Some(Event::Start(Tag::Link(_, _, _))) => {
 				self.inside_link = true;
@@ -173,6 +177,14 @@ where
 			}
 			next_event @ Some(Event::End(Tag::Link(_, _, _))) => {
 				self.inside_link = false;
+				next_event
+			}
+			next_event @ Some(Event::Start(Tag::CodeBlock(_))) => {
+				self.inside_codeblock = true;
+				next_event
+			}
+			next_event @ Some(Event::End(Tag::CodeBlock(_))) => {
+				self.inside_codeblock = false;
 				next_event
 			}
 			next_event => next_event,
@@ -266,7 +278,7 @@ mod tests {
 			TextMergeStream::new(
 				vec![
 					Event::Text(CowStr::Borrowed("foo")),
-					Event::Text(CowStr::Borrowed("bar"))
+					Event::Text(CowStr::Borrowed("bar")),
 				]
 				.into_iter()
 			)
@@ -279,7 +291,7 @@ mod tests {
 				vec![
 					Event::Text(CowStr::Borrowed("foo")),
 					Event::HardBreak,
-					Event::Text(CowStr::Borrowed("bar"))
+					Event::Text(CowStr::Borrowed("bar")),
 				]
 				.into_iter()
 			)
@@ -287,7 +299,7 @@ mod tests {
 			vec![
 				Event::Text(CowStr::Borrowed("foo")),
 				Event::HardBreak,
-				Event::Text(CowStr::Borrowed("bar"))
+				Event::Text(CowStr::Borrowed("bar")),
 			]
 		);
 
@@ -297,7 +309,7 @@ mod tests {
 					Event::Text(CowStr::Borrowed("foo")),
 					Event::HardBreak,
 					Event::Text(CowStr::Borrowed("bar")),
-					Event::Text(CowStr::Borrowed("baz"))
+					Event::Text(CowStr::Borrowed("baz")),
 				]
 				.into_iter()
 			)
@@ -305,7 +317,7 @@ mod tests {
 			vec![
 				Event::Text(CowStr::Borrowed("foo")),
 				Event::HardBreak,
-				Event::Text(CowStr::Borrowed("barbaz"))
+				Event::Text(CowStr::Borrowed("barbaz")),
 			]
 		);
 
@@ -315,7 +327,7 @@ mod tests {
 					Event::Text(CowStr::Borrowed("foo")),
 					Event::Text(CowStr::Borrowed("bar")),
 					Event::HardBreak,
-					Event::Text(CowStr::Borrowed("baz"))
+					Event::Text(CowStr::Borrowed("baz")),
 				]
 				.into_iter()
 			)
@@ -323,7 +335,7 @@ mod tests {
 			vec![
 				Event::Text(CowStr::Borrowed("foobar")),
 				Event::HardBreak,
-				Event::Text(CowStr::Borrowed("baz"))
+				Event::Text(CowStr::Borrowed("baz")),
 			]
 		);
 	}
@@ -349,7 +361,7 @@ mod tests {
 				vec![
 					Event::Text(CowStr::Borrowed("foo")),
 					Event::HardBreak,
-					Event::Text(CowStr::Borrowed("bar"))
+					Event::Text(CowStr::Borrowed("bar")),
 				]
 				.into_iter()
 			)
@@ -357,7 +369,7 @@ mod tests {
 			vec![
 				Event::Text(CowStr::Borrowed("foo")),
 				Event::HardBreak,
-				Event::Text(CowStr::Borrowed("bar"))
+				Event::Text(CowStr::Borrowed("bar")),
 			]
 		);
 
@@ -380,7 +392,7 @@ mod tests {
 					CowStr::Borrowed("https://example.com"),
 					CowStr::Borrowed(""),
 				)),
-				Event::Text(CowStr::Borrowed(" bar"))
+				Event::Text(CowStr::Borrowed(" bar")),
 			]
 		);
 
@@ -400,7 +412,7 @@ mod tests {
 						CowStr::Borrowed("https://example.com"),
 						CowStr::Borrowed(""),
 					)),
-					Event::Text(CowStr::Borrowed(" bar"))
+					Event::Text(CowStr::Borrowed(" bar")),
 				]
 				.into_iter()
 			)
@@ -418,9 +430,109 @@ mod tests {
 					CowStr::Borrowed("https://example.com"),
 					CowStr::Borrowed(""),
 				)),
-				Event::Text(CowStr::Borrowed(" bar"))
+				Event::Text(CowStr::Borrowed(" bar")),
 			]
 		);
+
+		// After ignored autolink, link detection must resume
+		assert_eq!(
+			LinkHighlightStream::new(
+				vec![
+					Event::Start(Tag::Link(
+						LinkType::Autolink,
+						CowStr::Borrowed("https://example.com"),
+						CowStr::Borrowed(""),
+					)),
+					Event::Text(CowStr::Borrowed("https://example.com")),
+					Event::End(Tag::Link(
+						LinkType::Autolink,
+						CowStr::Borrowed("https://example.com"),
+						CowStr::Borrowed(""),
+					)),
+					Event::Text(CowStr::Borrowed(" bar https://foobar.com")),
+				]
+				.into_iter()
+			)
+			.collect::<Vec<Event<'_>>>(),
+			vec![
+				Event::Start(Tag::Link(
+					LinkType::Autolink,
+					CowStr::Borrowed("https://example.com"),
+					CowStr::Borrowed(""),
+				)),
+				Event::Text(CowStr::Borrowed("https://example.com")),
+				Event::End(Tag::Link(
+					LinkType::Autolink,
+					CowStr::Borrowed("https://example.com"),
+					CowStr::Borrowed(""),
+				)),
+				Event::Text(CowStr::Borrowed(" bar ")),
+				Event::Start(Tag::Link(
+					LinkType::Autolink,
+					CowStr::Borrowed("https://foobar.com"),
+					CowStr::Borrowed(""),
+				)),
+				Event::Text(CowStr::Borrowed("https://foobar.com")),
+				Event::End(Tag::Link(
+					LinkType::Autolink,
+					CowStr::Borrowed("https://foobar.com"),
+					CowStr::Borrowed(""),
+				)),
+			]
+		);
+
+		/*// Ignore text content in code blocks
+		assert_eq!(
+			LinkHighlightStream::new(
+				vec![
+					Event::Text(CowStr::Borrowed("foo ")),
+					Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(CowStr::Borrowed("")),)),
+					Event::Text(CowStr::Borrowed("var link = \"https://example.com\"")),
+					Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(CowStr::Borrowed("")),)),
+					Event::Text(CowStr::Borrowed(" bar")),
+				]
+				.into_iter()
+			)
+			.collect::<Vec<Event<'_>>>(),
+			vec![
+				Event::Text(CowStr::Borrowed("foo ")),
+				Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(CowStr::Borrowed("")),)),
+				Event::Text(CowStr::Borrowed("var link = \"https://example.com\"")),
+				Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(CowStr::Borrowed("")),)),
+				Event::Text(CowStr::Borrowed(" bar")),
+			]
+		);
+
+		// After ignored code block, link detection must resume
+		assert_eq!(
+			LinkHighlightStream::new(
+				vec![
+					Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(CowStr::Borrowed("")),)),
+					Event::Text(CowStr::Borrowed("var link = \"https://example.com\"")),
+					Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(CowStr::Borrowed("")),)),
+					Event::Text(CowStr::Borrowed(" bar https://foobar.com")),
+				]
+				.into_iter()
+			)
+			.collect::<Vec<Event<'_>>>(),
+			vec![
+				Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(CowStr::Borrowed("")),)),
+				Event::Text(CowStr::Borrowed("var link = \"https://example.com\"")),
+				Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(CowStr::Borrowed("")),)),
+				Event::Text(CowStr::Borrowed(" bar ")),
+				Event::Start(Tag::Link(
+					LinkType::Autolink,
+					CowStr::Borrowed("https://foobar.com"),
+					CowStr::Borrowed(""),
+				)),
+				Event::Text(CowStr::Borrowed("https://foobar.com")),
+				Event::End(Tag::Link(
+					LinkType::Autolink,
+					CowStr::Borrowed("https://foobar.com"),
+					CowStr::Borrowed(""),
+				)),
+			]
+		);*/
 
 		// Make sure that the following URLs with special characters are all recognized
 		let special_urls = vec![
