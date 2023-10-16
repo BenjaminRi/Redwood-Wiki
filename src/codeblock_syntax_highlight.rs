@@ -65,8 +65,9 @@ where
 			next_event @ Some(Event::End(Tag::CodeBlock(_))) => {
 				let mut local_html_gen = None;
 				std::mem::swap(&mut local_html_gen, &mut self.html_generator);
-				let mut html = local_html_gen.unwrap().finalize(); // If this panics, it's a bug in `pulldown-cmark`
-				html.push_str("</code></pre>");
+				// If the following `unwrap()` panics, it's a bug in `pulldown-cmark`,
+				// because it means we had an `End` tag without a `Start` tag.
+				let html = local_html_gen.unwrap().finalize();
 				self.inject_event = next_event;
 				Some(Event::Html(CowStr::Boxed(html.into_boxed_str())))
 			}
